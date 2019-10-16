@@ -16,15 +16,17 @@ wget --no-verbose -O miniconda.sh $MINICONDA_URL
 bash miniconda.sh -b -p $MINICONDA
 export PATH="$MINICONDA/bin:$PATH"
 
+conda install -y -q conda=4.6
 conda update -y -q conda
 conda config --set auto_update_conda false
 conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
 
 conda create -y -q -n fletcher python=${PYTHON_VERSION} \
-    pandas pyarrow pytest pytest-cov pytest-flake8 \
+    pandas pyarrow=0.14 pytest pytest-cov pytest-flake8 \
     hypothesis \
     flake8 \
+    setuptools \
     setuptools_scm \
     pip \
     numba \
