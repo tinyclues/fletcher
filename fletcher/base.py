@@ -87,7 +87,7 @@ class FletcherDtype(ExtensionDtype):
     def type(self):
         # type: () -> type
         """The scalar type for the array, e.g. ``int``
-        It's expected ``ExtensionArray[item]`` returns an instance
+        It's expected ``FletcherArray[item]`` returns an instance
         of ``ExtensionDtype.type`` for scalar ``item``.
         """
         return _python_type_map[self.arrow_dtype.id]
@@ -205,29 +205,6 @@ class FletcherArray(ExtensionArray):
         """
         return pa.column("dummy", self.data).to_pandas().values
 
-    @property
-    def size(self):
-        """
-        Number of elements in this array.
-
-        Returns
-        -------
-        size : int
-        """
-        # type: () -> int
-        return len(self.data)
-
-    @property
-    def shape(self):
-        # type: () -> Tuple[int]
-        # This may be patched by pandas to support pseudo-2D operations.
-        return (self.size,)
-
-    @property
-    def ndim(self):
-        # type: () -> int
-        return len(self.shape)
-
     def __len__(self):
         """
         Length of this array
@@ -237,11 +214,11 @@ class FletcherArray(ExtensionArray):
         length : int
         """
         # type: () -> int
-        return self.shape[0]
+        return len(self.data)
 
     @classmethod
     def _concat_same_type(cls, to_concat):
-        # type: (Sequence[ExtensionArray]) -> ExtensionArray
+        # type: (Sequence[FletcherArray]) -> FletcherArray
         """
         Concatenate multiple array
 
@@ -251,7 +228,7 @@ class FletcherArray(ExtensionArray):
 
         Returns
         -------
-        ExtensionArray
+        FletcherArray
         """
         return cls(
             pa.chunked_array(
@@ -328,7 +305,7 @@ class FletcherArray(ExtensionArray):
             * boolean ndarray
             * slice object
 
-        value : ExtensionDtype.type, Sequence[ExtensionDtype.type], or object
+        value : FletcherDtype.type, Sequence[FletcherDtype.type], or object
             value or values to be set of ``key``.
 
         Returns
@@ -409,14 +386,14 @@ class FletcherArray(ExtensionArray):
             * ndarray: A 1-d boolean NumPy ndarray the same length as 'self'
         Returns
         -------
-        item : scalar or ExtensionArray
+        item : scalar or FletcherArray
         Notes
         -----
         For scalar ``item``, return a scalar value suitable for the array's
         type. This should be an instance of ``self.dtype.type``.
-        For slice ``key``, return an instance of ``ExtensionArray``, even
+        For slice ``key``, return an instance of ``FletcherArray``, even
         if the slice is length 0 or 1.
-        For a boolean mask, return an instance of ``ExtensionArray``, filtered
+        For a boolean mask, return an instance of ``FletcherArray``, filtered
         to the values where ``item`` is True.
         """
         # Workaround for Arrow bug that segfaults on empty slice.
@@ -473,22 +450,16 @@ class FletcherArray(ExtensionArray):
         """
         return extract_isnull_bytemap(self.data)
 
-    def copy(self, deep=False):
-        # type: (bool) -> ExtensionArray
+    def copy(self):
+        # type: () -> FletcherArray
         """
-        Return a copy of the array.
-
-        Parameters
-        ----------
-        deep : bool, default False
-            Also copy the underlying data backing this array.
+        Return a copy of the array
+        currently is a shadow copy - pyarrow array are supposed to be immutable
 
         Returns
         -------
-        ExtensionArray
+        FletcherArray
         """
-        if deep:
-            raise NotImplementedError("Deep copy is not supported")
         return type(self)(self.data)
 
     @property
@@ -497,12 +468,12 @@ class FletcherArray(ExtensionArray):
         """
         The number of bytes needed to store this object in memory.
         """
-        size = 0
-        for chunk in self.data.chunks:
-            for buf in chunk.buffers():
-                if buf is not None:
-                    size += buf.size
-        return size
+        return sum(
+            buf.size
+            for chunk in self.data.chunks
+            for buf in chunk.buffers()
+            if buf is not None
+        )
 
     @property
     def base(self):
@@ -512,8 +483,8 @@ class FletcherArray(ExtensionArray):
         return self.data
 
     def factorize(self, na_sentinel=-1):
-        # type: (int) -> Tuple[np.ndarray, ExtensionArray]
-        """Encode the extension array as an enumerated type.
+        # type: (int) -> Tuple[np.ndarray, FletcherArray]
+        """Encode the Fletcher array as an enumerated type.
         Parameters
         ----------
         na_sentinel : int, default -1
@@ -522,12 +493,12 @@ class FletcherArray(ExtensionArray):
         -------
         labels : ndarray
             An integer NumPy array that's an indexer into the original
-            ExtensionArray.
-        uniques : ExtensionArray
-            An ExtensionArray containing the unique values of `self`.
+            FletcherArray.
+        uniques : FletcherArray
+            An FletcherArray containing the unique values of `self`.
             .. note::
                uniques will *not* contain an entry for the NA value of
-               the ExtensionArray if there are any missing values present
+               the FletcherArray if there are any missing values present
                in `self`.
         See Also
         --------
@@ -594,7 +565,7 @@ class FletcherArray(ExtensionArray):
     @classmethod
     def _from_sequence(cls, scalars, dtype=None, copy=None):
         """
-        Construct a new ExtensionArray from a sequence of scalars.
+        Construct a new FletcherArray from a sequence of scalars.
 
         Parameters
         ----------
@@ -604,7 +575,7 @@ class FletcherArray(ExtensionArray):
 
         Returns
         -------
-        ExtensionArray
+        FletcherArray
         """
         if isinstance(scalars, FletcherArray):
             return scalars
@@ -633,7 +604,7 @@ class FletcherArray(ExtensionArray):
             filled.
         Returns
         -------
-        filled : ExtensionArray with NA/NaN filled
+        filled : FletcherArray with NA/NaN filled
         """
         from pandas.api.types import is_array_like
         from pandas.util._validators import validate_fillna_kwargs
@@ -665,7 +636,7 @@ class FletcherArray(ExtensionArray):
         return new_values
 
     def take(self, indices, allow_fill=False, fill_value=None):
-        # type: (Sequence[int], bool, Optional[Any]) -> ExtensionArray
+        # type: (Sequence[int], bool, Optional[Any]) -> FletcherArray
         """
         Take elements from an array.
 
@@ -685,7 +656,7 @@ class FletcherArray(ExtensionArray):
             Fill value to use for NA-indices when `allow_fill` is True.
             This may be ``None``, in which case the default NA value for
             the type, ``self.dtype.na_value``, is used.
-            For many ExtensionArrays, there will be two representations of
+            For many FletcherArrays, there will be two representations of
             `fill_value`: a user-facing "boxed" scalar, and a low-level
             physical NA value. `fill_value` should be the user-facing version,
             and the implementation should handle translating that to the
@@ -693,7 +664,7 @@ class FletcherArray(ExtensionArray):
 
         Returns
         -------
-        ExtensionArray
+        FletcherArray
 
         Raises
         ------
@@ -705,7 +676,7 @@ class FletcherArray(ExtensionArray):
 
         Notes
         -----
-        ExtensionArray.take is called by ``Series.__getitem__``, ``.loc``,
+        FletcherArray.take is called by ``Series.__getitem__``, ``.loc``,
         ``iloc``, when `indices` is a sequence of values. Additionally,
         it's called by :meth:`Series.reindex`, or any other method
         that causes realignemnt, with a `fill_value`.
@@ -725,6 +696,17 @@ class FletcherArray(ExtensionArray):
         # the data, before passing to take.
         result = take(data, indices, fill_value=fill_value, allow_fill=allow_fill)
         return self._from_sequence(result, dtype=self.data.type)
+
+    def unique(self):
+        """
+        Compute the FletcherArray of unique values.
+        It completely relies on the Pyarrow.ChunkedArray.unique
+
+        Returns
+        -------
+        uniques : FletcherArray
+        """
+        return type(self)(self.data.unique())
 
 
 def pandas_from_arrow(arrow_object):
