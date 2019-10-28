@@ -10,6 +10,7 @@ import pyarrow as pa
 import pytest
 
 import fletcher as fr
+from fletcher.base import to_numpy
 
 
 @pytest.fixture
@@ -40,6 +41,22 @@ def test_get_chunk_indexer(array_inhom_chunks, indices, expected):
 def test_fletcherarray_constructor():
     with pytest.raises(ValueError):
         fr.FletcherArray(None)
+
+
+def test_to_numpy():
+    with pytest.raises(NotImplementedError):
+        to_numpy(pa.array(["a", "b", "c"], pa.string()), None)
+    with pytest.raises(ValueError):
+        to_numpy(pa.array([2, 1, None]), None)
+
+    npt.assert_array_equal(to_numpy(pa.array([2, 1, None]), -1), [2, 1, -1])
+    npt.assert_array_equal(to_numpy(pa.array([2, 1, None]), -1.2), [2, 1, -1])
+    npt.assert_array_equal(to_numpy(pa.array([2, 1.4, None]), -1.2), [2, 1.4, -1.2])
+    npt.assert_array_equal(to_numpy(pa.array([2, 1, 2]), -1), [2, 1, 2])
+    npt.assert_array_equal(
+        to_numpy(pa.array([None, None], type=pa.int32()), -1.2), [-1, -1]
+    )
+    npt.assert_array_equal(to_numpy(pa.array([], type=pa.float16()), -1.2), [])
 
 
 def test_pandas_from_arrow():

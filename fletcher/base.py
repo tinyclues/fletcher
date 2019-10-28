@@ -11,13 +11,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import six
-from pandas.api.types import (
-    is_array_like,
-    is_bool_dtype,
-    is_int64_dtype,
-    is_integer,
-    is_integer_dtype,
-)
+from pandas.api.types import is_array_like, is_bool_dtype, is_integer, is_integer_dtype
 from pandas.core.arrays import ExtensionArray
 from pandas.core.dtypes.dtypes import ExtensionDtype
 
@@ -50,7 +44,8 @@ _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 
 class FletcherDtype(ExtensionDtype):
-    # na_value = pa.Null()
+
+    # na_value = pa.null()
 
     def __init__(self, arrow_dtype):
         self.arrow_dtype = arrow_dtype
@@ -59,10 +54,10 @@ class FletcherDtype(ExtensionDtype):
         return hash(self.arrow_dtype)
 
     def __str__(self):
-        return "fletcher[{}]".format(self.arrow_dtype)
+        return f"fletcher[{self.arrow_dtype}]"
 
     def __repr__(self):
-        return "FletcherDType({})".format(str(self.arrow_dtype))
+        return f"FletcherDType({str(self.arrow_dtype)})"
 
     def __eq__(self, other):
         """Check whether 'other' is equal to self.
@@ -187,10 +182,9 @@ class FletcherArray(ExtensionArray):
             self.data = array
         else:
             raise ValueError(
-                "Unsupported type passed for {}: {}".format(
-                    self.__class__.__name__, type(array)
-                )
+                f"Unsupported type passed for {self.__class__.__name__}: {type(array)}"
             )
+
         self._dtype = FletcherDtype(self.data.type)
         self.offsets = self._calculate_chunk_offsets()
 
@@ -199,11 +193,18 @@ class FletcherArray(ExtensionArray):
         # type: () -> ExtensionDtype
         return self._dtype
 
-    def __array__(self, copy=None):
+    def __array__(self, dtype=None, copy=False):
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
+
+        Returns
+        -------
+        np.ndarray
         """
-        return pa.column("dummy", self.data).to_pandas().values
+        # type: (Any, bool) -> np.ndarray
+        return np.array(
+            self.data.to_pandas(deduplicate_objects=True), dtype=dtype, copy=copy
+        )
 
     def __len__(self):
         """
@@ -251,7 +252,7 @@ class FletcherArray(ExtensionArray):
         """
         Returns an array with the chunk number for each index
         """
-        if self.data.num_chunks == 1:
+        if self._has_single_chunk:
             return np.broadcast_to(0, len(array))
         return np.digitize(array, self.offsets[1:])
 
@@ -284,11 +285,7 @@ class FletcherArray(ExtensionArray):
         elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
             return all_op(self.data, skipna=skipna)
 
-        raise TypeError(
-            "cannot perform {name} with type {dtype}".format(
-                name=name, dtype=self.dtype
-            )
-        )
+        raise TypeError(f"cannot perform {name} with type {self.dtype}")
 
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None
@@ -476,15 +473,15 @@ class FletcherArray(ExtensionArray):
         )
 
     @property
-    def base(self):
-        """
-        the base object of the underlying data
-        """
-        return self.data
+    def _has_single_chunk(self):
+        return self.data.num_chunks == 1
 
     def factorize(self, na_sentinel=-1):
         # type: (int) -> Tuple[np.ndarray, FletcherArray]
+
         """Encode the Fletcher array as an enumerated type.
+        It relies on "pa.array.dictionary_encode" implementation.
+
         Parameters
         ----------
         na_sentinel : int, default -1
@@ -507,21 +504,22 @@ class FletcherArray(ExtensionArray):
         -----
         :meth:`pandas.factorize` offers a `sort` keyword as well.
         """
-        if pa.types.is_dictionary(self.data.type):
-            raise NotImplementedError()
-        elif self.data.num_chunks == 1:
-            # Dictionaryencode and do the same as above
-            encoded = self.data.chunk(0).dictionary_encode()
-            indices = encoded.indices.to_pandas()
-            if indices.dtype.kind == "f":
-                indices[np.isnan(indices)] = na_sentinel
-                indices = indices.astype(int)
-            if not is_int64_dtype(indices):
-                indices = indices.astype(np.int64)
-            return indices, type(self)(encoded.dictionary)
+        if self.data.num_chunks == 0:
+            return type(self)(pa.array([], type=self.data.type)).factorize(na_sentinel)
         else:
-            np_array = pa.column("dummy", self.data).to_pandas().values
-            return pd.factorize(np_array, na_sentinel=na_sentinel)
+            encoded = self.data.dictionary_encode()
+        if self._has_single_chunk:
+            indices = to_numpy(encoded.chunks[0].indices, null_value=na_sentinel)
+        else:
+            indices = np.concatenate(
+                [
+                    to_numpy(chunk.indices, null_value=na_sentinel)
+                    for chunk in encoded.chunks
+                ]
+            )
+        # dictionaries are the same across all chunks
+        unique = type(self)(encoded.chunks[0].dictionary)
+        return (indices.astype(np.int64, copy=False), unique)
 
     def astype(self, dtype, copy=True):
         """
@@ -560,7 +558,7 @@ class FletcherArray(ExtensionArray):
         if arrow_type is not None:
             return FletcherArray(np.asarray(self).astype(dtype), dtype=arrow_type)
         else:
-            return np.asarray(self).astype(dtype)
+            return np.array(self, dtype, copy=copy)
 
     @classmethod
     def _from_sequence(cls, scalars, dtype=None, copy=None):
@@ -617,8 +615,8 @@ class FletcherArray(ExtensionArray):
         if is_array_like(value):
             if len(value) != len(self):
                 raise ValueError(
-                    "Length of 'value' does not match. Got ({}) "
-                    " expected {}".format(len(value), len(self))
+                    f"Length of 'value' does not match. Got ({len(value)}) "
+                    f" expected {len(self)}"
                 )
             value = value[mask]
 
@@ -630,7 +628,9 @@ class FletcherArray(ExtensionArray):
             else:
                 # fill with value
                 new_values = self.copy()
-                new_values[mask] = value
+                new_values[
+                    mask
+                ] = value  # __setitem__ should overwrite self.data pointer
         else:
             new_values = self.copy()
         return new_values
@@ -734,5 +734,44 @@ def pandas_from_arrow(arrow_object):
         return pd.Series(FletcherArray(arrow_object.data), name=arrow_object.name)
     else:
         raise NotImplementedError(
-            "Objects of type {} are not supported".format(type(arrow_object))
+            f"Objects of type {type(arrow_object)} are not supported"
         )
+
+
+def to_numpy(array, null_value):
+    # type: (pa.Array, Any) -> np.ndarray
+
+    """
+    Return a NumPy view of this array
+    Only primitive arrays with the same memory layout as NumPy (i.e. integers, floating point) are supported
+    From https://github.com/apache/arrow/blob/master/python/pyarrow/array.pxi#L842
+
+    DISCLAIMER :
+    for most array classes we will return a view on buffer data, and replace null values inplace
+    for now we haven't found any problem with this approach, but it can potentially break in future
+    :param null_value: value to use to replace nulls in original array
+    :param clean: boolean to return only "clean" part of an array, without nulls
+    Example :
+
+    >>> a = pa.array([5, 7, None, None, 13])
+    >>> to_numpy(a, -1)
+    array([ 5,  7, -1, -1, 13])
+    """
+    if not pa.types.is_primitive(array.type) or pa.types.is_boolean(array.type):
+        raise NotImplementedError(
+            "NumPy array view is only supported " "for primitive types."
+        )
+    if null_value is None and array.null_count > 0:
+        raise ValueError("null_value cannot be None if there're nulls")
+
+    null_mask = extract_isnull_bytemap(pa.chunked_array([array]))
+
+    buflist = array.buffers()
+    assert len(buflist) == 2
+    # doing view here !
+    res = np.frombuffer(buflist[-1], dtype=array.type.to_pandas_dtype())[
+        array.offset : array.offset + len(array)
+    ]
+    if np.any(null_mask):
+        res[null_mask] = null_value
+    return res

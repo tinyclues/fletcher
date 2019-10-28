@@ -18,6 +18,9 @@ import fletcher as fr
 
 TEST_LIST = ["Test", "string", None]
 TEST_ARRAY = pa.array(TEST_LIST, type=pa.string())
+TEST_ARRAY_CHUNKED = pa.chunked_array(
+    [pa.array(["c", "b", "a", None] * 2), pa.array(["d", None, "b", "a"] * 2)]
+)
 
 
 @pytest.fixture
@@ -207,8 +210,31 @@ def test_factorize():
     npt.assert_array_equal(uniques, expected_uniques)
 
 
+def test_factorize_many_chunks():
+    arr = fr.FletcherArray(TEST_ARRAY_CHUNKED)
+    labels, uniques = arr.factorize()
+    expected_labels, expected_uniques = pd.factorize(arr.astype(object))
+
+    assert isinstance(uniques, fr.FletcherArray)
+
+    uniques = uniques.astype(object)
+    npt.assert_array_equal(labels, expected_labels)
+    npt.assert_array_equal(uniques, expected_uniques)
+
+
 def test_unique():
     arr = fr.FletcherArray(TEST_ARRAY)
+    uniques = arr.unique()
+    expected_uniques = pd.unique(arr.astype(object))
+
+    assert isinstance(uniques, fr.FletcherArray)
+
+    uniques = uniques.astype(object)
+    npt.assert_array_equal(uniques, expected_uniques)
+
+
+def test_unique_many_chunks():
+    arr = fr.FletcherArray(TEST_ARRAY_CHUNKED)
     uniques = arr.unique()
     expected_uniques = pd.unique(arr.astype(object))
 
@@ -229,6 +255,14 @@ def test_groupby():
 
 @pytest.mark.parametrize("kind", ["quicksort", "mergesort", "heapsort"])
 def test_argsort(test_array_chunked_nulls, kind):
+    s = pd.Series(fr.FletcherArray(test_array_chunked_nulls))
+    result = s.argsort(kind=kind)
+    expected = s.astype(object).argsort(kind=kind)
+    tm.assert_series_equal(result, expected)
+
+
+@pytest.mark.parametrize("kind", ["quicksort", "mergesort", "heapsort"])
+def test_argsort_many_chunks(test_array_chunked_nulls, kind):
     s = pd.Series(fr.FletcherArray(test_array_chunked_nulls))
     result = s.argsort(kind=kind)
     expected = s.astype(object).argsort(kind=kind)

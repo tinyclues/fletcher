@@ -355,10 +355,6 @@ class TestBaseMethodsTests(BaseMethodsTests):
         else:
             BaseMethodsTests.test_combine_add(self, data_repeated)
 
-    # @pytest.mark.parametrize("na_sentinel", [-1, -2])
-    # def test_factorize(self, data_for_grouping, na_sentinel):
-    #    BaseMethodsTests.test_factorize(self, data_for_grouping, na_sentinel)
-
     def test_argsort(self, data_for_sorting):
         if pa.types.is_boolean(data_for_sorting.dtype.arrow_dtype):
             pytest.skip("Boolean has too few values for this test")
