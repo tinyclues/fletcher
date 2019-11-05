@@ -45,7 +45,6 @@ _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 
 class FletcherDtype(ExtensionDtype):
-
     """Dtype for a pandas ExtensionArray backed by Apache Arrow."""
 
     # na_value = pa.null()
@@ -216,6 +215,7 @@ class FletcherArray(ExtensionArray):
         return self._dtype
 
     def __array__(self, dtype=None, copy=False):
+        # type: (Any, bool) -> np.ndarray
         """
         Correctly construct numpy arrays when passed to `np.asarray()`.
 
@@ -223,7 +223,6 @@ class FletcherArray(ExtensionArray):
         -------
         np.ndarray
         """
-        # type: (Any, bool) -> np.ndarray
         return np.array(
             self.data.to_pandas(deduplicate_objects=True), dtype=dtype, copy=copy
         )
@@ -434,7 +433,8 @@ class FletcherArray(ExtensionArray):
     def copy(self):
         # type: () -> FletcherArray
         """
-        Return a copy of the array
+        Return a copy of the array.
+
         currently is a shadow copy - pyarrow array are supposed to be immutable
 
         Returns
@@ -461,8 +461,11 @@ class FletcherArray(ExtensionArray):
     def factorize(self, na_sentinel=-1):
         # type: (int) -> Tuple[np.ndarray, FletcherArray]
 
-        """Encode the Fletcher array as an enumerated type.
+        """
+        Encode the Fletcher array as an enumerated type.
+
         It relies on "pa.array.dictionary_encode" implementation.
+
         Parameters
         ----------
         na_sentinel : int, default -1
@@ -686,6 +689,7 @@ class FletcherArray(ExtensionArray):
         ValueError
             When `indices` contains negative values other than ``-1``
             and `allow_fill` is True.
+
         Notes
         -----
         ExtensionArray.take is called by ``Series.__getitem__``, ``.loc``,
@@ -769,6 +773,7 @@ class FletcherArray(ExtensionArray):
     def unique(self):
         """
         Compute the FletcherArray of unique values.
+
         It completely relies on the Pyarrow.ChunkedArray.unique
 
         Returns
@@ -809,9 +814,9 @@ def pandas_from_arrow(
 
 def to_numpy(array, null_value):
     # type: (pa.Array, Any) -> np.ndarray
-
     """
-    Return a NumPy view of this array
+    Return a NumPy view of this array.
+
     Only primitive arrays with the same memory layout as NumPy (i.e. integers, floating point) are supported
     From https://github.com/apache/arrow/blob/master/python/pyarrow/array.pxi#L842
 
