@@ -23,22 +23,21 @@ conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
 
 conda create -y -q -n fletcher python=${PYTHON_VERSION} \
-    pandas pyarrow=0.14 pytest pytest-cov pytest-flake8 \
+    pandas pyarrow=0.14 pytest pytest-cov \
     hypothesis \
-    flake8 \
-    setuptools \
     setuptools_scm \
     pip \
     numba \
     codecov \
     six \
     sphinx \
+    pre_commit \
     -c conda-forge
 source activate fletcher
 
-if [ "${PYTHON_VERSION}" = "3.6" ]; then
-  conda install -y -q black=19.3b0 -c conda-forge
-  black --check .
+if [ "${PYTHON_VERSION}" = "3.7" ]; then
+  pre-commit install
+  pre-commit run -a
 fi
 
 if [[ ${USE_DEV_WHEELS} ]]; then
@@ -61,7 +60,7 @@ fi
 codecov
 
 # Check documentation build only in one job
-if [ "${PYTHON_VERSION}" = "3.6" ]; then
+if [ "${PYTHON_VERSION}" = "3.7" ]; then
   pushd docs
   make html
   popd

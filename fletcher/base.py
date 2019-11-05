@@ -46,28 +46,36 @@ _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
 
 class FletcherDtype(ExtensionDtype):
 
+    """Dtype for a pandas ExtensionArray backed by Apache Arrow."""
+
     # na_value = pa.null()
 
-    def __init__(self, arrow_dtype):
+    def __init__(self, arrow_dtype: pa.DataType):
         self.arrow_dtype = arrow_dtype
 
     def __hash__(self):
+        """Hash the Dtype."""
         return hash(self.arrow_dtype)
 
     def __str__(self):
+        """Convert to string."""
         return f"fletcher[{self.arrow_dtype}]"
 
     def __repr__(self):
+        """Return the textual representation of this object."""
         return f"FletcherDType({str(self.arrow_dtype)})"
 
     def __eq__(self, other):
         """Check whether 'other' is equal to self.
+
         By default, 'other' is considered equal if
         * it's a string matching 'self.name'.
         * it's an instance of this type.
+
         Parameters
         ----------
         other : Any
+
         Returns
         -------
         bool
@@ -81,8 +89,8 @@ class FletcherDtype(ExtensionDtype):
 
     @property
     def type(self):
-        # type: () -> type
-        """The scalar type for the array, e.g. ``int``
+        """Return the scalar type for the array, e.g. ``int``.
+
         It's expected ``FletcherArray[item]`` returns an instance
         of ``ExtensionDtype.type`` for scalar ``item``.
         """
@@ -91,11 +99,13 @@ class FletcherDtype(ExtensionDtype):
     @property
     def kind(self):
         # type () -> str
-        """A character code (one of 'biufcmMOSUV'), default 'O'
+        """Return a character code (one of 'biufcmMOSUV'), default 'O'.
+
         This should match the NumPy dtype used when the array is
         converted to an ndarray, which is probably 'O' for object if
         the extension type cannot be represented as a built-in NumPy
         type.
+
         See Also
         --------
         numpy.dtype.kind
@@ -108,7 +118,8 @@ class FletcherDtype(ExtensionDtype):
     @property
     def name(self):
         # type: () -> str
-        """A string identifying the data type.
+        """Return a string identifying the data type.
+
         Will be used for display in, e.g. ``Series.dtype``
         """
         return str(self)
@@ -116,16 +127,20 @@ class FletcherDtype(ExtensionDtype):
     @classmethod
     def construct_from_string(cls, string):
         """Attempt to construct this type from a string.
+
         Parameters
         ----------
         string : str
+
         Returns
         -------
         self : instance of 'cls'
+
         Raises
         ------
         TypeError
             If a class cannot be constructed from this 'string'.
+
         Examples
         --------
         If the extension dtype can be constructed without any arguments,
@@ -156,7 +171,7 @@ class FletcherDtype(ExtensionDtype):
     @classmethod
     def construct_array_type(cls, *args):
         """
-        Return the array type associated with this dtype
+        Return the array type associated with this dtype.
 
         Returns
         -------
@@ -168,6 +183,8 @@ class FletcherDtype(ExtensionDtype):
 
 
 class FletcherArray(ExtensionArray):
+    """Pandas ExtensionArray implementation backed by Apache Arrow."""
+
     _can_hold_na = True
 
     def __init__(self, array, dtype=None, copy=None):
@@ -176,6 +193,9 @@ class FletcherArray(ExtensionArray):
         if is_array_like(array) or isinstance(array, list):
             self.data = pa.chunked_array([pa.array(array, type=dtype)])
         elif isinstance(array, pa.Array):
+            # ARROW-7008: pyarrow.chunked_array([array]) fails on array with all-None buffers
+            if len(array) == 0 and all((b is None for b in array.buffers())):
+                array = pa.array([], type=array.type)
             # TODO: Assert dtype
             self.data = pa.chunked_array([array])
         elif isinstance(array, pa.ChunkedArray):
@@ -192,6 +212,7 @@ class FletcherArray(ExtensionArray):
     @property
     def dtype(self):
         # type: () -> ExtensionDtype
+        """Return the ExtensionDtype of this array."""
         return self._dtype
 
     def __array__(self, dtype=None, copy=False):
@@ -208,21 +229,20 @@ class FletcherArray(ExtensionArray):
         )
 
     def __len__(self):
+        # type: () -> int
         """
-        Length of this array
+        Length of this array.
 
         Returns
         -------
         length : int
         """
-        # type: () -> int
         return len(self.data)
 
     @classmethod
     def _concat_same_type(cls, to_concat):
         # type: (Sequence[FletcherArray]) -> FletcherArray
-        """
-        Concatenate multiple array
+        """Concatenate multiple array.
 
         Parameters
         ----------
@@ -239,9 +259,7 @@ class FletcherArray(ExtensionArray):
         )
 
     def _calculate_chunk_offsets(self):
-        """
-        Returns an array holding the indices pointing to the first element of each chunk
-        """
+        """Return an array holding the indices pointing to the first element of each chunk."""
         offset = 0
         offsets = []
         for chunk in self.data.iterchunks():
@@ -250,9 +268,7 @@ class FletcherArray(ExtensionArray):
         return np.array(offsets)
 
     def _get_chunk_indexer(self, array):
-        """
-        Returns an array with the chunk number for each index
-        """
+        """Return an array with the chunk number for each index."""
         if self._has_single_chunk:
             return np.broadcast_to(0, len(array))
         return np.digitize(array, self.offsets[1:])
@@ -342,32 +358,27 @@ class FletcherArray(ExtensionArray):
             key_chunk_indices = np.argwhere(affected_chunks_index == ix).flatten()
             array_chunk_indices = key[key_chunk_indices] - offset
 
-            if pa.types.is_date64(self.dtype.arrow_dtype):
-                # ARROW-2741: pa.array from np.datetime[D] and type=pa.date64 produces invalid results
-                arr = np.array(chunk.to_pylist())
-                arr[array_chunk_indices] = np.array(value)[key_chunk_indices]
-                pa_arr = pa.array(arr, self.dtype.arrow_dtype)
-            else:
-                arr = chunk.to_pandas()
-                # In the case where we zero-copy Arrow to Pandas conversion, the
-                # the resulting arrays are read-only.
-                if not arr.flags.writeable:
-                    arr = arr.copy()
-                arr[array_chunk_indices] = value[key_chunk_indices]
+            arr = chunk.to_pandas().values
+            # In the case where we zero-copy Arrow to Pandas conversion, the
+            # the resulting arrays are read-only.
+            if not arr.flags.writeable:
+                arr = arr.copy()
+            arr[array_chunk_indices] = value[key_chunk_indices]
 
-                mask = None
-                # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
-                if (
-                    pa.types.is_integer(self.dtype.arrow_dtype)
-                    or pa.types.is_floating(self.dtype.arrow_dtype)
-                    or pa.types.is_boolean(self.dtype.arrow_dtype)
-                ):
-                    nan_values = pd.isna(value[key_chunk_indices])
-                    if any(nan_values):
-                        nan_index = key_chunk_indices & nan_values
-                        mask = np.ones_like(arr, dtype=bool)
-                        mask[nan_index] = False
-                pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
+            mask = None
+            # ARROW-2806: Inconsistent handling of np.nan requires adding a mask
+            if (
+                pa.types.is_integer(self.dtype.arrow_dtype)
+                or pa.types.is_date(self.dtype.arrow_dtype)
+                or pa.types.is_floating(self.dtype.arrow_dtype)
+                or pa.types.is_boolean(self.dtype.arrow_dtype)
+            ):
+                nan_values = pd.isna(value[key_chunk_indices])
+                if any(nan_values):
+                    nan_index = key_chunk_indices & nan_values
+                    mask = np.ones_like(arr, dtype=bool)
+                    mask[nan_index] = False
+            pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
             all_chunks[ix] = pa_arr
 
         self.data = pa.chunked_array(all_chunks)
@@ -375,6 +386,7 @@ class FletcherArray(ExtensionArray):
     def __getitem__(self, item):
         # type (Any) -> Any
         """Select a subset of self.
+
         Parameters
         ----------
         item : int, slice, or ndarray
@@ -382,6 +394,7 @@ class FletcherArray(ExtensionArray):
             * slice: A slice object, where 'start', 'stop', and 'step' are
               integers or None
             * ndarray: A 1-d boolean NumPy ndarray the same length as 'self'
+
         Returns
         -------
         item : scalar or FletcherArray
@@ -433,9 +446,7 @@ class FletcherArray(ExtensionArray):
     @property
     def nbytes(self):
         # type: () -> int
-        """
-        The number of bytes needed to store this object in memory.
-        """
+        """Return the number of bytes needed to store this object in memory."""
         return sum(
             buf.size
             for chunk in self.data.chunks
@@ -452,11 +463,11 @@ class FletcherArray(ExtensionArray):
 
         """Encode the Fletcher array as an enumerated type.
         It relies on "pa.array.dictionary_encode" implementation.
-
         Parameters
         ----------
         na_sentinel : int, default -1
             Value to use in the `labels` array to indicate missing values.
+
         Returns
         -------
         labels : ndarray
@@ -468,9 +479,11 @@ class FletcherArray(ExtensionArray):
                uniques will *not* contain an entry for the NA value of
                the FletcherArray if there are any missing values present
                in `self`.
+
         See Also
         --------
         pandas.factorize : Top-level factorize method that dispatches here.
+
         Notes
         -----
         :meth:`pandas.factorize` offers a `sort` keyword as well.
@@ -553,7 +566,8 @@ class FletcherArray(ExtensionArray):
         return cls(pa.array(scalars, type=dtype, from_pandas=True))
 
     def fillna(self, value=None, method=None, limit=None):
-        """ Fill NA/NaN values using the specified method.
+        """Fill NA/NaN values using the specified method.
+
         Parameters
         ----------
         value : scalar, array-like
@@ -571,6 +585,7 @@ class FletcherArray(ExtensionArray):
             be partially filled. If method is not specified, this is the
             maximum number of entries along the entire axis where NaNs will be
             filled.
+
         Returns
         -------
         filled : FletcherArray with NA/NaN filled
@@ -763,29 +778,29 @@ class FletcherArray(ExtensionArray):
         return type(self)(self.data.unique())
 
 
-def pandas_from_arrow(arrow_object):
+def pandas_from_arrow(
+    arrow_object: Union[pa.RecordBatch, pa.Table, pa.Array, pa.ChunkedArray]
+):
     """
-    Converts Arrow object instance to their Pandas equivalent by using Fletcher.
+    Convert Arrow object instance to their Pandas equivalent by using Fletcher.
 
     The conversion rules are:
       * {RecordBatch, Table} -> DataFrame
-      * {Array, ChunkedArray, Column} -> Series
+      * {Array, ChunkedArray} -> Series
     """
     if isinstance(arrow_object, pa.RecordBatch):
-        data = OrderedDict()
+        data: OrderedDict = OrderedDict()
         for ix, arr in enumerate(arrow_object):
             col_name = arrow_object.schema.names[ix]
             data[col_name] = FletcherArray(arr)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, pa.Table):
         data = OrderedDict()
-        for col in arrow_object.itercolumns():
-            data[col.name] = FletcherArray(col.data)
+        for name, col in zip(arrow_object.column_names, arrow_object.itercolumns()):
+            data[name] = FletcherArray(col)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, (pa.ChunkedArray, pa.Array)):
         return pd.Series(FletcherArray(arrow_object))
-    elif isinstance(arrow_object, pa.Column):
-        return pd.Series(FletcherArray(arrow_object.data), name=arrow_object.name)
     else:
         raise NotImplementedError(
             f"Objects of type {type(arrow_object)} are not supported"
