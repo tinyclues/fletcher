@@ -300,8 +300,12 @@ class FletcherArray(ExtensionArray):
             return any_op(self.data, skipna=skipna)
         elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
             return all_op(self.data, skipna=skipna)
-
-        raise TypeError(f"cannot perform {name} with type {self.dtype}")
+        elif name == "sum":
+            return sum(ch.sum().as_py() for ch in self.data.chunks)
+        elif name == "mean":
+            return self._reduce("sum") / (len(self) - self.data.null_count)
+        else:
+            raise TypeError(f"cannot perform {name} with type {self.dtype}")
 
     def __setitem__(self, key, value):
         # type: (Union[int, np.ndarray], Any) -> None

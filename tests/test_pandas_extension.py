@@ -29,7 +29,6 @@ from pandas.tests.extension.base import (  # BaseArithmeticOpsTests,; BaseCompar
     BaseSetitemTests,
 )
 
-
 if LooseVersion(pd.__version__) >= "0.25.0":
     # imports of pytest fixtures needed for derived unittest classes
     from pandas.tests.extension.conftest import (  # noqa: F401
@@ -39,7 +38,6 @@ if LooseVersion(pd.__version__) >= "0.25.0":
         as_frame,  # noqa: F401
         as_series,  # noqa: F401
     )
-
 
 FletcherTestType = namedtuple(
     "FletcherTestType",
@@ -67,7 +65,6 @@ fail_on_missing_dtype_in_from_sequence = pytest.mark.xfail(
     LooseVersion(pa.__version__) >= "0.10.1dev0",
     reason="Default return type of pa.array([datetime.date]) changed, Pandas tests don't pass the dtype to from_sequence",
 )
-
 
 test_types = [
     FletcherTestType(

@@ -158,3 +158,32 @@ def test_take():
         pa.chunked_array([[4, 8, 7] for _ in range(100)])
     )
     npt.assert_array_equal(expected_result, result)
+
+
+def test_reduce_sum():
+    test = [[1, 2, 3], [1, 2, None]]
+
+    fr_test_int = fr.FletcherArray(pa.chunked_array(test), dtype=pa.int64())
+    fr_test_float = fr.FletcherArray(pa.chunked_array(test), dtype=pa.float64())
+
+    result_int = fr_test_int._reduce("sum")
+    result_float = fr_test_float._reduce("sum")
+
+    expected_result_int = 9
+    expected_result_float = 9.0
+
+    assert result_int == expected_result_int
+    assert result_float == expected_result_float
+
+    assert fr.FletcherArray([], dtype=pa.int32())._reduce("sum") == 0
+
+
+def test_reduce_mean():
+    test = [[1, 2, 3], [1, 2, None]]
+    fr_test_int = fr.FletcherArray(pa.chunked_array(test), dtype=pa.int64())
+    fr_test_float = fr.FletcherArray(pa.chunked_array(test), dtype=pa.float64())
+    result_int = fr_test_int._reduce("mean")
+    result_float = fr_test_float._reduce("mean")
+    expected_result = 9 / 5
+    assert result_int == expected_result
+    assert result_float == expected_result
