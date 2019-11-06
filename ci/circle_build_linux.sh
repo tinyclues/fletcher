@@ -23,7 +23,7 @@ conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
 
 conda create -y -q -n fletcher python=${PYTHON_VERSION} \
-    pandas pyarrow=0.14 pytest pytest-cov \
+    pandas pyarrow>=0.15.1 pytest pytest-cov \
     hypothesis \
     setuptools_scm \
     pip \

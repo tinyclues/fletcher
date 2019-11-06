@@ -464,7 +464,6 @@ class FletcherArray(ExtensionArray):
 
     def factorize(self, na_sentinel=-1):
         # type: (int) -> Tuple[np.ndarray, FletcherArray]
-
         """
         Encode the Fletcher array as an enumerated type.
 
@@ -722,11 +721,13 @@ class FletcherArray(ExtensionArray):
 
         length = len(self)
         indices = np.asarray(indices, dtype=self._indices_dtype)
-        has_negative_indices = np.any(indices < 0)
+        has_negative_indices = np.any(indices < 0)  # type: ignore
         allow_fill &= has_negative_indices
         if allow_fill:
             validate_indices(indices, length)
-        if (has_negative_indices and not allow_fill) or np.any(indices >= length):
+        if (has_negative_indices and not allow_fill) or np.any(
+            indices >= length  # type: ignore
+        ):
             # this will raise IndexError expected by pandas in all needed cases
             indices = np.arange(length, dtype=self._indices_dtype).take(indices)
         # here we guarantee that indices is numpy array of ints
@@ -758,7 +759,7 @@ class FletcherArray(ExtensionArray):
             else:
                 sort_idx = get_group_index_sorter(bins, self.data.num_chunks)
                 del bins
-                indices = indices.take(sort_idx, out=indices)
+                indices = indices.take(sort_idx, out=indices)  # type: ignore
                 sort_idx = np.argsort(sort_idx, kind="merge")  # inverse sort indices
                 return self._take_on_chunks(
                     indices,
