@@ -16,7 +16,10 @@ from pandas.core.dtypes.dtypes import ExtensionDtype
 from pandas.core.indexers import validate_indices
 from pandas.core.sorting import get_group_index_sorter
 
-from ._algorithms import all_op, any_op, extract_isnull_bytemap
+# fmt: off
+from ._algorithms import aggregate_fletcher_array, all_op, any_op, extract_isnull_bytemap
+
+# fmt:on
 
 _python_type_map = {
     pa.null().id: six.text_type,
@@ -257,6 +260,13 @@ class FletcherArray(ExtensionArray):
             )
         )
 
+    @property
+    def is_numeric(self):
+        """Tells if the array contains int or float."""
+        return pa.types.is_integer(self.data.type) or pa.types.is_floating(
+            self.data.type
+        )
+
     def _calculate_chunk_offsets(self):
         """Return an array holding the indices pointing to the first element of each chunk."""
         offset = 0
@@ -304,6 +314,8 @@ class FletcherArray(ExtensionArray):
             return sum(ch.sum().as_py() for ch in self.data.chunks)
         elif name == "mean":
             return self._reduce("sum") / (len(self) - self.data.null_count)
+        elif name in ["max", "min"] and self.is_numeric:
+            return aggregate_fletcher_array(self, name)
         else:
             raise TypeError(f"cannot perform {name} with type {self.dtype}")
 

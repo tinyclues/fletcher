@@ -244,3 +244,68 @@ def all_op(arr, skipna):
         return _all_op_nonnull(len(arr), arr.buffers()[1])
     # skipna is not relevant in the Pandas behaviour
     return _all_op(len(arr), *arr.buffers())
+
+
+def aggregate_fletcher_array(fr_arr, aggregator):
+    """
+    Return a scalar by aggregating the FletcherArray depending on the keyword aggregator.
+
+    Parameters
+    ----------
+    fr_arr: fr.FletcherArray
+    aggregator: string
+
+    Returns
+    -------
+    scalar
+
+    Notes
+    -----
+    For now, only max and min are implemented in this function.
+
+    """
+    if len(fr_arr) == 0:
+        return None
+
+    def aggregate_one_chunk(chunk):
+        arr_buff = np.frombuffer(
+            chunk.buffers()[1],
+            dtype=chunk.type.to_pandas_dtype(),
+            count=len(chunk),
+            offset=chunk.offset,
+        )
+        op_ma = {"max": max_ma, "min": min_ma}[aggregator]
+        return op_ma(arr_buff, chunk.buffers()[0])
+
+    op = {"max": max, "min": min}[aggregator]
+    return op(aggregate_one_chunk(ch) for ch in fr_arr.data.iterchunks())
+
+
+@numba.jit(nogil=True, nopython=True)
+def max_ma(arr, bitmap):
+    """Compute the max of a numpy array taking into account the null_mask."""
+    res = -np.inf
+    for i in range(len(arr)):
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        if bitmap[byte_offset] & mask:
+            a = arr[i]
+            if a > res:
+                res = a
+    return res
+
+
+@numba.jit(nogil=True, nopython=True)
+def min_ma(arr, bitmap):
+    """Compute the min of a numpy array taking into account the null_mask."""
+    res = np.inf
+    for i in range(len(arr)):
+        byte_offset = i // 8
+        bit_offset = i % 8
+        mask = np.uint8(1 << bit_offset)
+        if bitmap[byte_offset] & mask:
+            a = arr[i]
+            if a < res:
+                res = a
+    return res

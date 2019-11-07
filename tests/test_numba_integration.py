@@ -7,12 +7,11 @@ import numpy as np
 import pyarrow as pa
 import pytest
 
+# fmt: off
 from fletcher._algorithms import isnull, str_concat, str_length
-from fletcher._numba_compat import (
-    NumbaStringArray,
-    NumbaStringArrayBuilder,
-    buffers_as_arrays,
-)
+from fletcher._numba_compat import NumbaStringArray, NumbaStringArrayBuilder, buffers_as_arrays
+
+# fmt:on
 
 
 @numba.jit(nogil=True, nopython=True)

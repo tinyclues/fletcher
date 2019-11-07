@@ -187,3 +187,27 @@ def test_reduce_mean():
     expected_result = 9 / 5
     assert result_int == expected_result
     assert result_float == expected_result
+
+
+def test_reduce_max_min():
+    test = [[1, 2, 3], [-23, 75, None]]
+
+    fr_test_int = fr.FletcherArray(pa.chunked_array(test), dtype=pa.int64())
+    fr_test_float = fr.FletcherArray(pa.chunked_array(test), dtype=pa.float64())
+
+    result_int_max = fr_test_int._reduce("max")
+    result_int_min = fr_test_int._reduce("min")
+
+    result_float_max = fr_test_float._reduce("max")
+    result_float_min = fr_test_float._reduce("min")
+
+    expected_result_int_max = 75
+    expected_result_int_min = -23
+
+    expected_result_float_max = 75.0
+    expected_result_float_min = -23.0
+
+    assert result_int_max == expected_result_int_max
+    assert result_int_min == expected_result_int_min
+    assert result_float_max == expected_result_float_max
+    assert result_float_min == expected_result_float_min

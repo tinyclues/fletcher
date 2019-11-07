@@ -63,8 +63,8 @@ def compare_operators_no_eq_ne(request):
 
 _all_numeric_reductions = [
     # "sum",
-    "max",
-    "min",
+    # "max",
+    # "min",
     # "mean",
     "prod",
     "std",
