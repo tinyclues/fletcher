@@ -209,7 +209,6 @@ class FletcherArray(ExtensionArray):
             )
 
         self._dtype = FletcherDtype(self.data.type)
-        self.offsets = self._calculate_chunk_offsets()
 
     @property
     def dtype(self):
@@ -225,10 +224,32 @@ class FletcherArray(ExtensionArray):
         Returns
         -------
         np.ndarray
+
         """
         return np.array(
             self.data.to_pandas(deduplicate_objects=True), dtype=dtype, copy=copy
         )
+
+    def __arrow_array__(self, type=None):
+        # type: (pa.DataType,) -> pa.Array
+        """
+        Implement pyarrow array interface (requires pyarrow>=0.15).
+
+        Returns
+        -------
+        pa.Array
+
+        """
+        if self._has_single_chunk:
+            data = self.data.chunks[0]
+        else:
+            data = pa.concat_arrays(self.data.iterchunks())
+            self.data = pa.chunked_array([data])  # modify a data pointer inplace
+
+        if type is not None and type != data.type:
+            return data.cast(type, safe=False)
+        else:
+            return data
 
     def __len__(self):
         # type: () -> int
@@ -256,7 +277,7 @@ class FletcherArray(ExtensionArray):
         """
         return cls(
             pa.chunked_array(
-                [array for ea in to_concat for array in ea.data.iterchunks()]
+                (array for ea in to_concat for array in ea.data.iterchunks())
             )
         )
 
@@ -267,7 +288,8 @@ class FletcherArray(ExtensionArray):
             self.data.type
         )
 
-    def _calculate_chunk_offsets(self):
+    @property
+    def offsets(self):
         """Return an array holding the indices pointing to the first element of each chunk."""
         offset = 0
         offsets = []
@@ -396,6 +418,7 @@ class FletcherArray(ExtensionArray):
             pa_arr = pa.array(arr, self.dtype.arrow_dtype, mask=mask)
             all_chunks[ix] = pa_arr
 
+        # data pointer has been changed !
         self.data = pa.chunked_array(all_chunks)
 
     def __getitem__(self, item):
@@ -465,7 +488,7 @@ class FletcherArray(ExtensionArray):
         """Return the number of bytes needed to store this object in memory."""
         return sum(
             buf.size
-            for chunk in self.data.chunks
+            for chunk in self.data.iterchunks()
             for buf in chunk.buffers()
             if buf is not None
         )
@@ -516,7 +539,7 @@ class FletcherArray(ExtensionArray):
             indices = np.concatenate(
                 [
                     to_numpy(chunk.indices, null_value=na_sentinel)
-                    for chunk in encoded.chunks
+                    for chunk in encoded.iterchunks()
                 ]
             )
         # dictionaries are the same across all chunks
@@ -640,7 +663,7 @@ class FletcherArray(ExtensionArray):
         return new_values
 
     def _take_on_concatenated_chunks(self, indices):
-        return FletcherArray(pa.concat_arrays(self.data.chunks).take(pa.array(indices)))
+        return FletcherArray(self.__arrow_array__().take(pa.array(indices)))
 
     def _take_on_chunks(self, indices, limits_idx, cum_lengths, sort_idx=None):
         def take_in_one_chunk(i_chunk):
@@ -750,7 +773,7 @@ class FletcherArray(ExtensionArray):
             if self._has_single_chunk:
                 return FletcherArray(self.data.chunk(0).take(pa.array(indices)))
 
-            lengths = np.fromiter(map(len, self.data.chunks), dtype=np.int)
+            lengths = np.fromiter(map(len, self.data.iterchunks()), dtype=np.int)
             cum_lengths = lengths.cumsum()
 
             bins = self._get_chunk_indexer(indices)

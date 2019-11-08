@@ -49,7 +49,7 @@ def test_array_chunked_nulls(request):
         ),
         "none": pa.chunked_array([pa.array(["a", "b"] * 4) for _ in range(10)]),
     }
-    return case_dict[request.param]
+    return fr.FletcherArray(case_dict[request.param])
 
 
 # ----------------------------------------------------------------------------
@@ -179,9 +179,8 @@ def test_isna():
 
 
 def test_isna_chunked(test_array_chunked_nulls):
-    fa = fr.FletcherArray(test_array_chunked_nulls)
-    fs = pd.Series(fa)
-    ps = pd.Series(np.array(fa))
+    fs = pd.Series(test_array_chunked_nulls)
+    ps = pd.Series(np.array(test_array_chunked_nulls))
     tm.assert_series_equal(fs.isna(), ps.isna())
     tm.assert_series_equal(fs.notna(), ps.notna())
 
@@ -255,7 +254,7 @@ def test_groupby():
 
 @pytest.mark.parametrize("kind", ["quicksort", "mergesort", "heapsort"])
 def test_argsort(test_array_chunked_nulls, kind):
-    s = pd.Series(fr.FletcherArray(test_array_chunked_nulls))
+    s = pd.Series(test_array_chunked_nulls)
     result = s.argsort(kind=kind)
     expected = s.astype(object).argsort(kind=kind)
     tm.assert_series_equal(result, expected)
@@ -263,7 +262,7 @@ def test_argsort(test_array_chunked_nulls, kind):
 
 @pytest.mark.parametrize("kind", ["quicksort", "mergesort", "heapsort"])
 def test_argsort_many_chunks(test_array_chunked_nulls, kind):
-    s = pd.Series(fr.FletcherArray(test_array_chunked_nulls))
+    s = pd.Series(test_array_chunked_nulls)
     result = s.argsort(kind=kind)
     expected = s.astype(object).argsort(kind=kind)
     tm.assert_series_equal(result, expected)

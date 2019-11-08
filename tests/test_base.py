@@ -8,6 +8,7 @@ import pandas as pd
 import pandas.testing as pdt
 import pyarrow as pa
 import pytest
+from tests.test_pandas_integration import test_array_chunked_nulls  # noqa: F401
 
 import fletcher as fr
 from fletcher.base import to_numpy
@@ -211,3 +212,38 @@ def test_reduce_max_min():
     assert result_int_min == expected_result_int_min
     assert result_float_max == expected_result_float_max
     assert result_float_min == expected_result_float_min
+
+
+class TestArrowArrayProtocol:
+    def test_pa_array(self, array_inhom_chunks):
+        npt.assert_array_equal(array_inhom_chunks.offsets, [0, 3, 8])
+
+        expected = pa.concat_arrays(array_inhom_chunks.data.iterchunks())
+        real = pa.array(array_inhom_chunks)
+        assert isinstance(real, pa.Array)
+
+        assert real.equals(expected)
+
+        if pa.__version__ < "0.15":
+            npt.assert_array_equal(array_inhom_chunks.offsets, [0, 3, 8])
+        else:
+            npt.assert_array_equal(array_inhom_chunks.offsets, [0])
+
+    def test_arrow_array_modifies_data(self, test_array_chunked_nulls):  # noqa: F811
+        expected = pa.concat_arrays(test_array_chunked_nulls.data.iterchunks())
+        id1 = id(test_array_chunked_nulls.data)
+        real = test_array_chunked_nulls.__arrow_array__()
+
+        assert id1 != id(test_array_chunked_nulls.data)
+        assert real.equals(expected)
+
+    def test_arrow_array_types(self):  # noqa: F811
+        fr_arr = fr.FletcherArray(pa.array([3, None, 4.4]))
+        # non-safe casting
+        assert fr_arr.__arrow_array__(type=pa.int64()).equals(pa.array([3, None, 4]))
+        assert fr_arr.data.chunk(0).equals(pa.array([3, None, 4.4]))
+
+        fr_arr = fr.FletcherArray(pa.array(["3", "-2", "4.4"]))
+        # non-safe casting
+        assert fr_arr.__arrow_array__(type=pa.float64()).equals(pa.array([3, -2, 4.4]))
+        assert fr_arr.data.chunk(0).equals(pa.array(["3", "-2", "4.4"]))
