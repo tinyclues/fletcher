@@ -247,3 +247,24 @@ class TestArrowArrayProtocol:
         # non-safe casting
         assert fr_arr.__arrow_array__(type=pa.float64()).equals(pa.array([3, -2, 4.4]))
         assert fr_arr.data.chunk(0).equals(pa.array(["3", "-2", "4.4"]))
+
+
+def test_eq():
+    test = [[1, 2, 3], [4, 5, 1, None]]
+    fr_test = fr.FletcherArray(pa.chunked_array(test))
+    df_test = pd.DataFrame({"a": fr.FletcherArray(pa.chunked_array(test))})["a"]
+    result = fr_test == 1
+    expected_result = np.array([True, False, False, False, False, True, False])
+
+    npt.assert_array_equal(result, expected_result)
+    npt.assert_array_equal(fr_test == fr_test, np.array([True] * 6 + [False]))
+    npt.assert_array_equal(df_test == 2, np.array([False, True] + 5 * [False]))
+    npt.assert_array_equal(
+        df_test == np.array([1, 3, 2, 4, 5, 6, 7]),
+        np.array([True, False, False, True, True, False, False]),
+    )
+
+    with pytest.raises(ValueError) as error_length:
+        df_test == [1, 2]
+
+    assert "Lengths must match to compare" == str(error_length.value)

@@ -262,6 +262,31 @@ class FletcherArray(ExtensionArray):
         """
         return len(self.data)
 
+    def __eq__(self, other):
+        """
+        Check equality between a FletcherArray and an array-like object or a scalar.
+
+        Parameters
+        ----------
+        self: fr.FletcherArray
+        other: array-like object or scalar
+
+        Returns
+        -------
+        boolean
+
+        Notes
+        -----
+        numpy doesn't raise an error when given two arrays of mismatching lengths,
+        so we raise the error here.
+
+        """
+        array_self = np.asarray(self)
+        array_other = np.asarray(other)
+        if array_other.size != 1 and array_other.size != array_self.size:
+            raise ValueError("Lengths must match to compare")
+        return array_self == array_other
+
     @classmethod
     def _concat_same_type(cls, to_concat):
         # type: (Sequence[FletcherArray]) -> FletcherArray
