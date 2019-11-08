@@ -1,0 +1,27 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: tinyclues_fletcher
+  version: {{ data.get('version') }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: python -m pip install --no-deps --ignore-installed .
+  noarch: python
+
+requirements:
+  build:
+    - python {{ python }}
+    - pip
+    - setuptools_scm
+    - six
+
+  run:
+    - python
+    - numba
+    - pandas>=0.24
+    - pyarrow>=0.15.1
+    - six

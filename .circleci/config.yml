@@ -1,6 +1,10 @@
-version: 2
+version: 2.1
+
+orbs:
+  python: tinyclues/python@3.1.0
+
 jobs:
-  "python-3.6":
+  python-36:
     working_directory: ~/fletcher-circleci
     docker:
       # We use our own Python, so the version here is not relevant
@@ -13,7 +17,7 @@ jobs:
           path: test-reports
       - store_artifacts:
           path: test-reports
-  "python-3.7":
+  python-37:
     working_directory: ~/fletcher-circleci
     docker:
       # We use our own Python, so the version here is not relevant
@@ -26,7 +30,7 @@ jobs:
           path: test-reports
       - store_artifacts:
           path: test-reports
-  "upstream-dev":
+  upstream-dev:
     working_directory: ~/fletcher-circleci
     docker:
       # We use our own Python, so the version here is not relevant
@@ -41,8 +45,16 @@ jobs:
           path: test-reports
 
 workflows:
-  version: 2
   build:
     jobs:
-      - "python-3.6"
-      - "python-3.7"
+      - python-36
+      - python-37
+      - python/conda_build:
+          name: build_package
+      - python/conda_deploy:
+          name: package_deploy
+          context: artifactory
+          requires:
+            - python-36
+            - python-37
+            - build_package
