@@ -22,7 +22,6 @@ requirements:
   run:
     - python
     - numba
-    #numba=0.47 has a bug that will be fixed in the next release, see https://github.com/numba/numba/issues/5056.
     - pandas>=1.0
     - pyarrow>=0.17.1
     - six
