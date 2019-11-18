@@ -183,6 +183,18 @@ class FletcherDtype(ExtensionDtype):
             raise NotImplementedError("construct_array_type does not support arguments")
         return FletcherArray
 
+    @property
+    def _is_boolean(self):
+        return pa.types.is_boolean(self.arrow_dtype)
+
+    @property
+    def _is_numeric(self):
+        return (
+            pa.types.is_integer(self.arrow_dtype)
+            or pa.types.is_floating(self.arrow_dtype)
+            or pa.types.is_decimal(self.arrow_dtype)
+        )
+
 
 class FletcherArray(ExtensionArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow."""
@@ -307,13 +319,6 @@ class FletcherArray(ExtensionArray):
         )
 
     @property
-    def is_numeric(self):
-        """Tells if the array contains int or float."""
-        return pa.types.is_integer(self.data.type) or pa.types.is_floating(
-            self.data.type
-        )
-
-    @property
     def offsets(self):
         """Return an array holding the indices pointing to the first element of each chunk."""
         offset = 0
@@ -353,15 +358,15 @@ class FletcherArray(ExtensionArray):
         ------
         TypeError : subclass does not define reductions
         """
-        if name == "any" and pa.types.is_boolean(self.dtype.arrow_dtype):
+        if name == "any" and self.dtype._is_boolean:
             return any_op(self.data, skipna=skipna)
-        elif name == "all" and pa.types.is_boolean(self.dtype.arrow_dtype):
+        elif name == "all" and self.dtype._is_boolean:
             return all_op(self.data, skipna=skipna)
         elif name == "sum":
             return sum(ch.sum().as_py() for ch in self.data.chunks)
         elif name == "mean":
             return self._reduce("sum") / (len(self) - self.data.null_count)
-        elif name in ["max", "min"] and self.is_numeric:
+        elif name in ["max", "min"] and self.dtype._is_numeric:
             return aggregate_fletcher_array(self, name)
         else:
             raise TypeError(f"cannot perform {name} with type {self.dtype}")

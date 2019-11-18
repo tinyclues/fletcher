@@ -252,6 +252,21 @@ def test_groupby():
     tm.assert_frame_equal(result, expected)
 
 
+def test_groupby_numeric():
+    arr_str = fr.FletcherArray(["a", "a", "b", None, "a", "b"])
+    arr_num = fr.FletcherArray([1, None, 1, -2, 0, 2])
+
+    df = pd.DataFrame({"str": arr_str, "fr_int": arr_num, "int": np.array(arr_num)})
+
+    result_sum = df.groupby("str").sum()
+
+    expected_sum = pd.DataFrame(
+        {"fr_int": fr.FletcherArray([1, 3]), "int": [1.0, 3.0]},
+        index=pd.Index(["a", "b"], name="str"),
+    )
+    tm.assert_frame_equal(result_sum, expected_sum)
+
+
 @pytest.mark.parametrize("kind", ["quicksort", "mergesort", "heapsort"])
 def test_argsort(test_array_chunked_nulls, kind):
     s = pd.Series(test_array_chunked_nulls)
