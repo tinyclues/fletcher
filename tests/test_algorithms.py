@@ -2,9 +2,10 @@ import hypothesis.strategies as st
 import numpy as np
 import pandas as pd
 import pyarrow as pa
+import pytest
 from hypothesis import example, given
 
-from fletcher._algorithms import all_op, any_op
+from fletcher._algorithms import all_op, any_op, integer_array_to_numpy
 
 
 @given(data=st.lists(st.one_of(st.booleans(), st.none())), skipna=st.booleans())
@@ -47,3 +48,20 @@ def test_all_op(data, skipna):
             [data[: len(data) // 2], data[len(data) // 2 :]], type=pa.bool_()
         )
         assert all_op(arrow, skipna) == pandas.all(skipna=skipna)
+
+
+@pytest.mark.parametrize(
+    ("array", "fill_null_value", "expected"),
+    [
+        (pa.array([2, 1], type=pa.int16()), -1, np.array([2, 1], dtype=np.int16)),
+        (pa.array([2, None], type=pa.int32()), -1, np.array([2, -1], dtype=np.int32)),
+        (pa.array([2, None], type=pa.int64()), -1.5, np.array([2, -1], dtype=np.int64)),
+        (pa.array([1, None], type=pa.uint8()), 257, np.array([1, 1], dtype=np.uint8)),
+        (pa.array([None, None], type=pa.int8()), 5, np.array([5, 5], dtype=np.int8)),
+        (pa.array([], type=pa.int8()), 5, np.array([], dtype=np.int8)),
+    ],
+)
+def test_integer_array_to_numpy(array, fill_null_value, expected):
+    actual = integer_array_to_numpy(array, fill_null_value)
+    assert actual.dtype == expected.dtype
+    np.testing.assert_array_equal(actual, expected)

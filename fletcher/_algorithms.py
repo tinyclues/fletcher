@@ -309,3 +309,31 @@ def min_ma(arr, bitmap):
             if a < res:
                 res = a
     return res
+
+
+def integer_array_to_numpy(array: pa.IntegerArray, fill_null_value: int):
+    """
+    Transform pyarrow integer array to numpy array.
+
+    It is done without copy (view to original data buffer)
+    null values are replaced by given fill_null_value.
+
+    Parameters
+    ----------
+    array: pa.IntegerArray
+        pyarrow integer array to transform
+    fill_null_value: int
+        value to fill null values with
+
+    Returns
+    -------
+    array : ndarray
+        NumPy view on array's data
+    """
+    assert pa.types.is_integer(array.type)
+    null_mask = extract_isnull_bytemap(pa.chunked_array([array]))
+    res = np.frombuffer(array.buffers()[1], dtype=array.type.to_pandas_dtype())[
+        array.offset : array.offset + len(array)
+    ]
+    res[null_mask] = fill_null_value
+    return res

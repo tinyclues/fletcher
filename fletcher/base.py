@@ -17,7 +17,7 @@ from pandas.core.indexers import validate_indices
 from pandas.core.sorting import get_group_index_sorter
 
 # fmt: off
-from ._algorithms import aggregate_fletcher_array, all_op, any_op, extract_isnull_bytemap
+from ._algorithms import aggregate_fletcher_array, all_op, any_op, extract_isnull_bytemap, integer_array_to_numpy
 
 # fmt:on
 
@@ -559,17 +559,19 @@ class FletcherArray(ExtensionArray):
         else:
             encoded = self.data.dictionary_encode()
         if self._has_single_chunk:
-            indices = to_numpy(encoded.chunks[0].indices, null_value=na_sentinel)
+            indices = integer_array_to_numpy(
+                encoded.chunks[0].indices, fill_null_value=na_sentinel
+            )
         else:
             indices = np.concatenate(
                 [
-                    to_numpy(chunk.indices, null_value=na_sentinel)
+                    integer_array_to_numpy(chunk.indices, fill_null_value=na_sentinel)
                     for chunk in encoded.iterchunks()
                 ]
             )
         # dictionaries are the same across all chunks
         unique = type(self)(encoded.chunks[0].dictionary)
-        return (indices.astype(np.int64, copy=False), unique)
+        return indices.astype(np.int64, copy=False), unique
 
     def astype(self, dtype, copy=True):
         """
@@ -875,42 +877,3 @@ def pandas_from_arrow(
         raise NotImplementedError(
             f"Objects of type {type(arrow_object)} are not supported"
         )
-
-
-def to_numpy(array, null_value):
-    # type: (pa.Array, Any) -> np.ndarray
-    """
-    Return a NumPy view of this array.
-
-    Only primitive arrays with the same memory layout as NumPy (i.e. integers, floating point) are supported
-    From https://github.com/apache/arrow/blob/master/python/pyarrow/array.pxi#L842
-
-    DISCLAIMER :
-    for most array classes we will return a view on buffer data, and replace null values inplace
-    for now we haven't found any problem with this approach, but it can potentially break in future
-    :param null_value: value to use to replace nulls in original array
-    :param clean: boolean to return only "clean" part of an array, without nulls
-    Example :
-
-    >>> a = pa.array([5, 7, None, None, 13])
-    >>> to_numpy(a, -1)
-    array([ 5,  7, -1, -1, 13])
-    """
-    if not pa.types.is_primitive(array.type) or pa.types.is_boolean(array.type):
-        raise NotImplementedError(
-            "NumPy array view is only supported " "for primitive types."
-        )
-    if null_value is None and array.null_count > 0:
-        raise ValueError("null_value cannot be None if there're nulls")
-
-    null_mask = extract_isnull_bytemap(pa.chunked_array([array]))
-
-    buflist = array.buffers()
-    assert len(buflist) == 2
-    # doing view here !
-    res = np.frombuffer(buflist[-1], dtype=array.type.to_pandas_dtype())[
-        array.offset : array.offset + len(array)
-    ]
-    if np.any(null_mask):
-        res[null_mask] = null_value
-    return res
