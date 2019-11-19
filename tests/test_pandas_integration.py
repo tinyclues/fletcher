@@ -321,3 +321,18 @@ def test_setitem_chunked_int_index(indices, test_array_chunked):
     ser[integer_index] = ["int", "index"]
     assert ser[indices[0]] == "int"
     assert ser[indices[1]] == "index"
+
+
+def test_max_min_with_groupby():
+    df = pd.DataFrame(
+        {
+            "A": [1, 1, 2, 2, 3, 3, 1, 4],
+            "B": fr.FletcherArray(list(range(8))),
+            "C": list(range(8)),
+        }
+    )
+    df_result_max = df.groupby("A").max()
+    df_result_min = df.groupby("A").min()
+
+    npt.assert_array_equal(df_result_max["B"], df_result_max["C"])
+    npt.assert_array_equal(df_result_min["B"], df_result_min["C"])

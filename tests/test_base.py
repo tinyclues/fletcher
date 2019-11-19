@@ -197,6 +197,45 @@ def test_reduce_max_min():
     assert result_float_min == expected_result_float_min
 
 
+def test_reduce_max_min_no_nulls():
+    test = [1, 2, 3, -23, 75]
+
+    fr_test_int = fr.FletcherArray(test, dtype=pa.int64())
+    fr_test_float = fr.FletcherArray(test, dtype=pa.float64())
+
+    fr_test_int_no_nulls = fr.FletcherArray(
+        pa.Array.from_buffers(
+            type=pa.int64(),
+            length=len(fr_test_int),
+            buffers=[None, fr_test_int.data.chunk(0).buffers()[1]],
+        )
+    )
+    fr_test_float_no_nulls = fr.FletcherArray(
+        pa.Array.from_buffers(
+            type=pa.float64(),
+            length=len(fr_test_float),
+            buffers=[None, fr_test_float.data.chunk(0).buffers()[1]],
+        )
+    )
+
+    result_int_max = fr_test_int_no_nulls._reduce("max")
+    result_int_min = fr_test_int_no_nulls._reduce("min")
+
+    result_float_max = fr_test_float_no_nulls._reduce("max")
+    result_float_min = fr_test_float_no_nulls._reduce("min")
+
+    expected_result_int_max = 75
+    expected_result_int_min = -23
+
+    expected_result_float_max = 75.0
+    expected_result_float_min = -23.0
+
+    assert result_int_max == expected_result_int_max
+    assert result_int_min == expected_result_int_min
+    assert result_float_max == expected_result_float_max
+    assert result_float_min == expected_result_float_min
+
+
 class TestArrowArrayProtocol:
     def test_pa_array(self, array_inhom_chunks):
         npt.assert_array_equal(array_inhom_chunks.offsets, [0, 3, 8])

@@ -269,13 +269,14 @@ def aggregate_fletcher_array(fr_arr, aggregator):
 
     def aggregate_one_chunk(chunk):
         arr_buff = np.frombuffer(
-            chunk.buffers()[1],
-            dtype=chunk.type.to_pandas_dtype(),
-            count=len(chunk),
-            offset=chunk.offset,
-        )
-        op_ma = {"max": max_ma, "min": min_ma}[aggregator]
-        return op_ma(arr_buff, chunk.buffers()[0])
+            chunk.buffers()[1], dtype=chunk.type.to_pandas_dtype()
+        )[chunk.offset : chunk.offset + len(chunk)]
+        if chunk.null_count == 0:
+            op_ma = {"max": np.max, "min": np.min}[aggregator]
+            return op_ma(arr_buff)
+        else:
+            op_ma = {"max": max_ma, "min": min_ma}[aggregator]
+            return op_ma(arr_buff, chunk.buffers()[0])
 
     op = {"max": max, "min": min}[aggregator]
     return op(aggregate_one_chunk(ch) for ch in fr_arr.data.iterchunks())
