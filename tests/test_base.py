@@ -290,3 +290,14 @@ def test_eq():
         df_test == [1, 2]
 
     assert "Lengths must match to compare" == str(error_length.value)
+
+
+def test_flatten():
+    test = [[1, 2], [], [3, 4]]
+    empty_array = [[], [], [], []]
+
+    fr_test = fr.FletcherArray(test)
+    fr_test_empty_array = fr.FletcherArray(pa.chunked_array([empty_array, empty_array]))
+
+    npt.assert_array_equal(fr_test.flatten(), fr.FletcherArray([1, 2, 3, 4]))
+    npt.assert_array_equal(fr_test_empty_array.flatten(), np.array([], dtype=np.int64))

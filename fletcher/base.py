@@ -328,6 +328,12 @@ class FletcherArray(ExtensionArray):
             offset += len(chunk)
         return np.array(offsets)
 
+    def flatten(self):
+        """Return flattened FletcherArray using pa.flatten()."""
+        return type(self)(
+            pa.chunked_array(chunk.flatten() for chunk in self.data.iterchunks())
+        )
+
     def _get_chunk_indexer(self, array):
         """Return an array with the chunk number for each index."""
         if self._has_single_chunk:
