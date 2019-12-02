@@ -568,7 +568,14 @@ class FletcherArray(ExtensionArray):
         if self.data.num_chunks == 0:
             return type(self)(pa.array([], type=self.data.type)).factorize(na_sentinel)
         else:
-            encoded = self.data.dictionary_encode()
+            # Workaround for the issue: https://issues.apache.org/jira/browse/ARROW-7266
+            if pa.types.is_string(self.data.type):
+                encoded = pa.chunked_array(
+                    pa.serialize(chunk).deserialize() if chunk.offset != 0 else chunk
+                    for chunk in self.data.iterchunks()
+                ).dictionary_encode()
+            else:
+                encoded = self.data.dictionary_encode()
         if self._has_single_chunk:
             indices = integer_array_to_numpy(
                 encoded.chunks[0].indices, fill_null_value=na_sentinel

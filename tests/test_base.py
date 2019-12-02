@@ -301,3 +301,34 @@ def test_flatten():
 
     npt.assert_array_equal(fr_test.flatten(), fr.FletcherArray([1, 2, 3, 4]))
     npt.assert_array_equal(fr_test_empty_array.flatten(), np.array([], dtype=np.int64))
+
+
+@pytest.fixture
+def test():
+    return pa.array(["a", "b", "b", "b"])
+
+
+@pytest.fixture
+def test_with_nulls():
+    return pa.array(["a", "b", None, "b"])
+
+
+def test_factorize_with_offset(test, test_with_nulls):
+    fr_test = fr.FletcherArray(test)
+
+    result_indices_with_offset, result_unique_with_offset = fr_test[1:].factorize()
+    expected_indices_with_offset, expected_unique_with_offset = (
+        [0, 0, 0],
+        fr.FletcherArray(["b"]),
+    )
+
+    npt.assert_array_equal(result_indices_with_offset, expected_indices_with_offset)
+    npt.assert_array_equal(result_unique_with_offset, expected_unique_with_offset)
+
+    test_with_chunks_and_nulls = fr.FletcherArray(
+        pa.chunked_array([test_with_nulls, test_with_nulls])
+    )[1:]
+    indices, unique = test_with_chunks_and_nulls.factorize()
+    npt.assert_array_equal(
+        test_with_chunks_and_nulls, unique.take(indices, allow_fill=True)
+    )
