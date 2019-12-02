@@ -276,19 +276,19 @@ def aggregate_fletcher_array(fr_arr, aggregator):
             return op_ma(arr_buff)
         else:
             op_ma = {"max": max_ma, "min": min_ma}[aggregator]
-            return op_ma(arr_buff, chunk.buffers()[0])
+            return op_ma(arr_buff, chunk.buffers()[0], chunk.offset)
 
     op = {"max": max, "min": min}[aggregator]
     return op(aggregate_one_chunk(ch) for ch in fr_arr.data.iterchunks())
 
 
 @numba.jit(nogil=True, nopython=True)
-def max_ma(arr, bitmap):
+def max_ma(arr, bitmap, offset):
     """Compute the max of a numpy array taking into account the null_mask."""
     res = -np.inf
     for i in range(len(arr)):
-        byte_offset = i // 8
-        bit_offset = i % 8
+        byte_offset = (i + offset) // 8
+        bit_offset = (i + offset) % 8
         mask = np.uint8(1 << bit_offset)
         if bitmap[byte_offset] & mask:
             a = arr[i]
@@ -298,12 +298,12 @@ def max_ma(arr, bitmap):
 
 
 @numba.jit(nogil=True, nopython=True)
-def min_ma(arr, bitmap):
+def min_ma(arr, bitmap, offset):
     """Compute the min of a numpy array taking into account the null_mask."""
     res = np.inf
     for i in range(len(arr)):
-        byte_offset = i // 8
-        bit_offset = i % 8
+        byte_offset = (i + offset) // 8
+        bit_offset = (i + offset) % 8
         mask = np.uint8(1 << bit_offset)
         if bitmap[byte_offset] & mask:
             a = arr[i]

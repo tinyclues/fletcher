@@ -236,6 +236,15 @@ def test_reduce_max_min_no_nulls():
     assert result_float_min == expected_result_float_min
 
 
+def test_max_min_with_offset():
+    # pyarrow fills the buffer with value zero when there is a null, so we do a test with only negative values.
+    test = [[-30, None, -1, None], [-2, -15, -6]]
+    fr_test = fr.FletcherArray(pa.chunked_array(test))
+
+    assert fr_test[1:]._reduce("max") == -1
+    assert fr_test[1:]._reduce("min") == -15
+
+
 class TestArrowArrayProtocol:
     def test_pa_array(self, array_inhom_chunks):
         npt.assert_array_equal(array_inhom_chunks.offsets, [0, 3, 8])
