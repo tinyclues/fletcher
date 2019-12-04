@@ -195,6 +195,11 @@ class FletcherDtype(ExtensionDtype):
             or pa.types.is_decimal(self.arrow_dtype)
         )
 
+    @property
+    def is_list(self):
+        """Check if the array is a ListArray."""
+        return pa.types.is_list(self.arrow_dtype)
+
 
 class FletcherArray(ExtensionArray):
     """Pandas ExtensionArray implementation backed by Apache Arrow."""

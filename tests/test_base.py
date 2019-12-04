@@ -341,3 +341,16 @@ def test_factorize_with_offset(test, test_with_nulls):
     npt.assert_array_equal(
         test_with_chunks_and_nulls, unique.take(indices, allow_fill=True)
     )
+
+
+@pytest.fixture
+def test_list():
+    return {"int": [1, 2, 3], "float": [1.0, 2.0, 3.0], "string": ["1", "2", "3"]}
+
+
+def test_is_list(test_list):
+    for e in test_list.keys():
+        arr_list = fr.FletcherArray([test_list[e], test_list[e]])
+        arr = fr.FletcherArray(test_list[e])
+        assert arr_list.dtype.is_list
+        assert not arr.dtype.is_list
