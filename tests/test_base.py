@@ -57,6 +57,32 @@ def test_pandas_from_arrow():
     pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(table))
 
 
+@pytest.fixture
+def arr():
+    return {
+        "int": pa.array([1, 2, 3]),
+        "int_with_nulls": pa.array([1, 2, None]),
+        "dict": pa.array([1, 2, 3]).dictionary_encode(),
+    }
+
+
+def test_pandas_from_arrow_casting_to_pandas(arr):
+
+    table = pa.Table.from_arrays(
+        [arr["int"], arr["int_with_nulls"], arr["dict"]],
+        ["int", "int_with_nulls", "dict"],
+    )
+
+    df = fr.pandas_from_arrow(table)
+
+    for col in df.columns:
+        if col == "int_with_nulls":
+            assert isinstance(df[col].values, fr.FletcherArray)
+        else:
+            assert not isinstance(df[col].values, fr.FletcherArray)
+        npt.assert_array_equal(df[col], arr[col].to_pandas())
+
+
 def test_take_on_concatenated_chunks():
     test = [[1, 2, 8, 3], [4, 1, 5, 6], [7, 8, 9]]
     indices = np.array([4, 2, 8])

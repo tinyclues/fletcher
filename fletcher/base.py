@@ -892,7 +892,12 @@ def pandas_from_arrow(
     elif isinstance(arrow_object, pa.Table):
         data = OrderedDict()
         for name, col in zip(arrow_object.column_names, arrow_object.itercolumns()):
-            data[name] = FletcherArray(col)
+            if pa.types.is_dictionary(col.type) or (
+                col.null_count == 0 and pa.types.is_primitive(col.type)
+            ):
+                data[name] = col.to_pandas()
+            else:
+                data[name] = FletcherArray(col)
         return pd.DataFrame(data)
     elif isinstance(arrow_object, (pa.ChunkedArray, pa.Array)):
         return pd.Series(FletcherArray(arrow_object))
