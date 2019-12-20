@@ -53,9 +53,6 @@ def test_pandas_from_arrow():
     expected_df = pd.DataFrame({"column": fr.FletcherArray(arr)})
     pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(rb))
 
-    table = pa.Table.from_arrays([arr], ["column"])
-    pdt.assert_frame_equal(expected_df, fr.pandas_from_arrow(table))
-
 
 @pytest.fixture
 def arr():
@@ -63,24 +60,43 @@ def arr():
         "int": pa.array([1, 2, 3]),
         "int_with_nulls": pa.array([1, 2, None]),
         "dict": pa.array([1, 2, 3]).dictionary_encode(),
+        "string": pa.array(["s", "t", "v"]),
+        "date": pa.array(
+            np.array(["2019-09-01", "2019-09-01", "2019-09-02"], dtype="datetime64[ms]")
+        ),
+        "list": pa.array([[1, 2], [3], [4]]),
     }
 
 
 def test_pandas_from_arrow_casting_to_pandas(arr):
 
     table = pa.Table.from_arrays(
-        [arr["int"], arr["int_with_nulls"], arr["dict"]],
-        ["int", "int_with_nulls", "dict"],
+        [
+            arr["int"],
+            arr["int_with_nulls"],
+            arr["dict"],
+            arr["string"],
+            arr["date"],
+            arr["list"],
+        ],
+        ["int", "int_with_nulls", "dict", "string", "date", "list"],
     )
 
     df = fr.pandas_from_arrow(table)
 
     for col in df.columns:
-        if col == "int_with_nulls":
+        if col in ["int_with_nulls", "list"]:
             assert isinstance(df[col].values, fr.FletcherArray)
         else:
-            assert not isinstance(df[col].values, fr.FletcherArray)
-        npt.assert_array_equal(df[col], arr[col].to_pandas())
+            assert isinstance(
+                df[col].values, (np.ndarray, pd.core.arrays.categorical.Categorical)
+            )
+
+        if col == "list":
+            for i in range(len(arr[col])):
+                assert np.all(df[col][i] == arr[col][i])
+        else:
+            npt.assert_array_equal(df[col], arr[col].to_pandas())
 
 
 def test_take_on_concatenated_chunks():

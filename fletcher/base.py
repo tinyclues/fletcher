@@ -893,7 +893,7 @@ def pandas_from_arrow(
         data = OrderedDict()
         for name, col in zip(arrow_object.column_names, arrow_object.itercolumns()):
             if pa.types.is_dictionary(col.type) or (
-                col.null_count == 0 and pa.types.is_primitive(col.type)
+                col.null_count == 0 and not pa.types.is_list(col.type)
             ):
                 data[name] = col.to_pandas()
             else:
