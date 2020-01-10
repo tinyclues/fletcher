@@ -3,11 +3,12 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
-from hypothesis import example, given
+from hypothesis import example, given, settings
 
 from fletcher._algorithms import all_op, any_op, integer_array_to_numpy
 
 
+@settings(deadline=None)
 @given(data=st.lists(st.one_of(st.booleans(), st.none())), skipna=st.booleans())
 @example([], False)
 @example([], True)

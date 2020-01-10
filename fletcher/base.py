@@ -872,6 +872,34 @@ class FletcherArray(ExtensionArray):
         """
         return type(self)(self.data.unique())
 
+    def value_counts(self, normalize=False, sort=True, ascending=False, dropna=True):
+        """Return a Series containing counts of unique values."""
+        ind, unique = self.factorize()
+        missing = ind == -1
+
+        if not dropna and np.any(missing):
+            unique = type(self)(
+                pa.chunked_array(
+                    unique.data.chunks + [pa.array([None], type=self.dtype.arrow_dtype)]
+                )
+            )
+            ind[missing] = len(unique) - 1
+            counts = np.bincount(ind)
+        else:
+            counts = np.bincount(ind[np.logical_not(missing)])
+
+        if sort:
+            sorting_index = np.argsort(counts)
+            if not ascending:
+                sorting_index = sorting_index[::-1]
+        else:
+            sorting_index = slice(None, None)
+
+        if normalize:
+            counts = counts / counts.sum()
+
+        return pd.Series(counts[sorting_index], index=np.asarray(unique)[sorting_index])
+
 
 def pandas_from_arrow(
     arrow_object: Union[pa.RecordBatch, pa.Table, pa.Array, pa.ChunkedArray]

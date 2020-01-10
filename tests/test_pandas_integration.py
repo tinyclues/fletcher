@@ -2,6 +2,8 @@
 
 from __future__ import absolute_import, division, print_function, unicode_literals
 
+from itertools import product
+
 import numpy as np
 import numpy.testing as npt
 import pandas as pd
@@ -336,3 +338,24 @@ def test_max_min_with_groupby():
 
     npt.assert_array_equal(df_result_max["B"], df_result_max["C"])
     npt.assert_array_equal(df_result_min["B"], df_result_min["C"])
+
+
+def test_values_counts(test_array_chunked_nulls):
+    fs = pd.Series(test_array_chunked_nulls)
+    ps = pd.Series(np.array(test_array_chunked_nulls))
+    for normalize, sort, ascending, dropna in product(*[[True, False]] * 4):
+        args = {
+            "normalize": normalize,
+            "sort": sort,
+            "ascending": ascending,
+            "dropna": dropna,
+        }
+        if fs.isna().sum() < len(fs):
+            tm.assert_series_equal(
+                fs.value_counts(**args).sort_index(),
+                ps.value_counts(**args).sort_index(),
+            )
+        if sort:
+            npt.assert_array_equal(
+                fs.value_counts(**args).values, ps.value_counts(**args).values
+            )
