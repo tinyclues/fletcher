@@ -42,6 +42,7 @@ _python_type_map = {
     pa.string().id: six.text_type,
     # Use any list type here, only LIST is important
     pa.list_(pa.string()).id: list,
+    pa.large_list(pa.string()).id: list,
 }
 
 _string_type_map = {"date64[ms]": pa.date64(), "string": pa.string()}
@@ -198,7 +199,9 @@ class FletcherDtype(ExtensionDtype):
     @property
     def is_list(self):
         """Check if the array is a ListArray."""
-        return pa.types.is_list(self.arrow_dtype)
+        return pa.types.is_list(self.arrow_dtype) or pa.types.is_large_list(
+            self.arrow_dtype
+        )
 
 
 class FletcherArray(ExtensionArray):
@@ -628,7 +631,7 @@ class FletcherArray(ExtensionArray):
             arrow_type = None
         # NumPy's conversion of list->unicode is differently from Python's
         # default. We want to have the default Python output, so force it here.
-        if pa.types.is_list(self.dtype.arrow_dtype) and dtype.kind == "U":
+        if self.dtype.is_list and dtype.kind == "U":
             return np.vectorize(six.text_type)(np.asarray(self))
         if arrow_type is not None:
             return FletcherArray(np.asarray(self).astype(dtype), dtype=arrow_type)
@@ -921,7 +924,7 @@ def pandas_from_arrow(
         data = OrderedDict()
         for name, col in zip(arrow_object.column_names, arrow_object.itercolumns()):
             if pa.types.is_dictionary(col.type) or (
-                col.null_count == 0 and not pa.types.is_list(col.type)
+                col.null_count == 0 and not FletcherDtype(col.type).is_list
             ):
                 data[name] = col.to_pandas()
             else:

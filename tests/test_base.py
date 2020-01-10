@@ -65,6 +65,7 @@ def arr():
             np.array(["2019-09-01", "2019-09-01", "2019-09-02"], dtype="datetime64[ms]")
         ),
         "list": pa.array([[1, 2], [3], [4]]),
+        "large_list": pa.LargeListArray.from_arrays([0, 2, 3, 4], [1, 2, 3, 4]),
     }
 
 
@@ -78,21 +79,22 @@ def test_pandas_from_arrow_casting_to_pandas(arr):
             arr["string"],
             arr["date"],
             arr["list"],
+            arr["large_list"],
         ],
-        ["int", "int_with_nulls", "dict", "string", "date", "list"],
+        ["int", "int_with_nulls", "dict", "string", "date", "list", "large_list"],
     )
 
     df = fr.pandas_from_arrow(table)
 
     for col in df.columns:
-        if col in ["int_with_nulls", "list"]:
+        if col in ["int_with_nulls", "list", "large_list"]:
             assert isinstance(df[col].values, fr.FletcherArray)
         else:
             assert isinstance(
                 df[col].values, (np.ndarray, pd.core.arrays.categorical.Categorical)
             )
 
-        if col == "list":
+        if col in ["list", "large_list"]:
             for i in range(len(arr[col])):
                 assert np.all(df[col][i] == arr[col][i])
         else:
@@ -162,6 +164,37 @@ def test_take_on_chunks_with_many_chunks():
             indices, limits_idx=limits_idx, cum_lengths=cum_lengths, sort_idx=sort_idx
         )
         npt.assert_array_equal(expected_result, result)
+
+
+def test_take_list_arrays():
+    indices = [0, 1, 4, 3, 5]
+    indptr = [0, 2, 3, 5]
+    list_array = pa.ListArray.from_arrays(indptr, indices)
+    large_list_array = pa.LargeListArray.from_arrays(indptr, indices)
+
+    test = fr.FletcherArray(pa.chunked_array([list_array, list_array])).take([0, 5, 1])
+    test_large = fr.FletcherArray(
+        pa.chunked_array([large_list_array, large_list_array])
+    ).take([0, 5, 1])
+
+    expected = [[0, 1], [3, 5], [4]]
+
+    assert np.all(
+        list(
+            map(
+                lambda x: np.all(np.array(test[x]) == np.array(expected)[x]),
+                range(0, len(test)),
+            )
+        )
+    )
+    assert np.all(
+        list(
+            map(
+                lambda x: np.all(np.array(test_large[x]) == np.array(expected)[x]),
+                range(0, len(test_large)),
+            )
+        )
+    )
 
 
 def test_indices_dtype():
