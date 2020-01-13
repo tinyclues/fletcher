@@ -26,12 +26,13 @@ conda create -y -q -n fletcher python=${PYTHON_VERSION} \
     hypothesis \
     setuptools_scm \
     pip \
-    numba \
+    numba=0.46 \
     codecov \
     six \
     sphinx \
     pre_commit \
     -c conda-forge
+# numba=0.47 has a bug that will be fixed in the next release, see https://github.com/numba/numba/issues/5056.
 source activate fletcher
 
 if [ "${PYTHON_VERSION}" = "3.7" ]; then
