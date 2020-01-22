@@ -17,7 +17,14 @@ from pandas.core.indexers import validate_indices
 from pandas.core.sorting import get_group_index_sorter
 
 # fmt: off
-from ._algorithms import aggregate_fletcher_array, all_op, any_op, extract_isnull_bytemap, integer_array_to_numpy
+from ._algorithms import (
+    aggregate_fletcher_array,
+    all_op,
+    any_op,
+    extract_isnull_bytemap,
+    integer_array_to_numpy,
+    take_indices_on_pyarrow_list,
+)
 
 # fmt:on
 
@@ -716,13 +723,33 @@ class FletcherArray(ExtensionArray):
         return new_values
 
     def _take_on_concatenated_chunks(self, indices):
-        return FletcherArray(self.__arrow_array__().take(pa.array(indices)))
+        if (
+            self.dtype.is_list
+            and self.flatten().data.null_count == 0
+            and self.data.null_count == 0
+            and self.flatten().dtype._is_numeric
+        ):
+            return FletcherArray(
+                take_indices_on_pyarrow_list(self.__arrow_array__(), indices)
+            )
+        else:
+            return FletcherArray(self.__arrow_array__().take(pa.array(indices)))
 
     def _take_on_chunks(self, indices, limits_idx, cum_lengths, sort_idx=None):
         def take_in_one_chunk(i_chunk):
             indices_chunk = indices[limits_idx[i_chunk] : limits_idx[i_chunk + 1]]
             indices_chunk -= cum_lengths[i_chunk]
-            return self.data.chunk(i_chunk).take(pa.array(indices_chunk))
+            if (
+                self.dtype.is_list
+                and self.data.chunk(i_chunk).flatten().null_count == 0
+                and self.data.chunk(i_chunk).null_count == 0
+                and self.flatten().dtype._is_numeric
+            ):
+                return take_indices_on_pyarrow_list(
+                    self.data.chunk(i_chunk), indices_chunk
+                )
+            else:
+                return self.data.chunk(i_chunk).take(pa.array(indices_chunk))
             # this is a pyarrow.Array
 
         result = [take_in_one_chunk(i) for i in range(self.data.num_chunks)]
@@ -824,7 +851,17 @@ class FletcherArray(ExtensionArray):
         if not allow_fill:
 
             if self._has_single_chunk:
-                return FletcherArray(self.data.chunk(0).take(pa.array(indices)))
+                if (
+                    self.dtype.is_list
+                    and self.data.chunk(0).flatten().null_count == 0
+                    and self.data.chunk(0).null_count == 0
+                    and self.flatten().dtype._is_numeric
+                ):
+                    return FletcherArray(
+                        take_indices_on_pyarrow_list(self.data.chunk(0), indices)
+                    )
+                else:
+                    return FletcherArray(self.data.chunk(0).take(pa.array(indices)))
 
             lengths = np.fromiter(map(len, self.data.iterchunks()), dtype=np.int)
             cum_lengths = lengths.cumsum()

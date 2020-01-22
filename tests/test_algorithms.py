@@ -5,7 +5,10 @@ import pyarrow as pa
 import pytest
 from hypothesis import example, given, settings
 
-from fletcher._algorithms import all_op, any_op, integer_array_to_numpy
+# fmt: off
+from fletcher._algorithms import all_op, any_op, integer_array_to_numpy, take_indices_on_pyarrow_list
+
+# fmt: on
 
 
 @settings(deadline=None)
@@ -66,3 +69,40 @@ def test_integer_array_to_numpy(array, fill_null_value, expected):
     actual = integer_array_to_numpy(array, fill_null_value)
     assert actual.dtype == expected.dtype
     np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize(
+    ("array", "indices"),
+    [
+        (
+            pa.array([[k] for k in range(10 ** 4)]),
+            np.random.randint(0, 10 ** 4, 10 ** 2),
+        ),
+        (
+            pa.array([[float(k)] for k in range(10 ** 4)]),
+            np.random.randint(0, 10 ** 4, 10 ** 2),
+        ),
+        (
+            pa.array(np.random.randint(0, 100, 10) for _ in range(10 ** 4)),
+            np.random.randint(0, 10 ** 4, 10 ** 5),
+        ),
+        (
+            pa.LargeListArray.from_arrays(
+                [k for k in range(10 ** 4 + 1)], [k for k in range(10 ** 4)]
+            ),
+            np.random.randint(0, 10 ** 4, 10 ** 2),
+        ),
+        (
+            pa.LargeListArray.from_arrays(
+                [k for k in range(10 ** 4 + 1)], [float(k) for k in range(10 ** 4)]
+            ),
+            np.random.randint(0, 10 ** 4, 10 ** 2),
+        ),
+        (pa.array([[]]), [0]),
+    ],
+)
+def test_take_indices_on_pyarrow_list(array, indices):
+    np.testing.assert_array_equal(
+        array.take(pa.array(indices)).to_pylist(),
+        take_indices_on_pyarrow_list(array, indices).to_pylist(),
+    )

@@ -5,8 +5,12 @@ from __future__ import absolute_import, division, print_function
 import numba
 import numpy as np
 import pyarrow as pa
+from numba import njit, prange
 
 from ._numba_compat import NumbaStringArray
+
+FASTMATH = True
+PARALLEL = True
 
 
 @numba.jit(nogil=True, nopython=True)
@@ -338,3 +342,54 @@ def integer_array_to_numpy(array: pa.IntegerArray, fill_null_value: int):
     ]
     res[null_mask] = fill_null_value
     return res
+
+
+@njit(fastmath=FASTMATH)
+def _get_new_indptr(self_indptr, indices, new_indptr):
+    for i in range(len(indices)):
+        row = indices[i]
+        new_indptr[i + 1] = new_indptr[i] + self_indptr[row + 1] - self_indptr[row]
+    return new_indptr
+
+
+@njit(fastmath=FASTMATH, parallel=PARALLEL)
+def _fill_up_indices(new_indptr, new_indices, self_indices, self_indptr, indices):
+    for i in prange(len(indices)):
+        row = indices[i]
+        size = self_indptr[row + 1] - self_indptr[row]
+        if size > 0:
+            new_indices[new_indptr[i] : new_indptr[i + 1]] = self_indices[
+                self_indptr[row] : self_indptr[row + 1]
+            ]
+
+
+def take_indices_on_pyarrow_list(array, indices):
+    """Return a pyarrow.ListArray or pyarrow.LargeListArray containing only the rows of the given indices."""
+    if len(array.flatten()) == 0:
+        return array.take(pa.array(indices))
+
+    dtype = np.int64 if pa.types.is_large_list(array.type) else np.int32
+
+    self_indptr = np.frombuffer(array.buffers()[1], dtype=dtype)[
+        array.offset : array.offset + len(array) + 1
+    ]
+
+    self_indices = np.frombuffer(
+        array.buffers()[3], dtype=array.type.value_type.to_pandas_dtype()
+    )[self_indptr[0] : self_indptr[-1]]
+
+    self_indptr = self_indptr - self_indptr[0]
+    self_indptr.setflags(write=0)
+    array.validate()
+
+    length = indices.shape[0]
+
+    new_indptr = np.zeros(length + 1, dtype=self_indptr.dtype)
+    new_indptr = _get_new_indptr(self_indptr, indices, new_indptr)
+    new_indices = np.zeros(new_indptr[length], dtype=self_indices.dtype)
+
+    _fill_up_indices(new_indptr, new_indices, self_indices, self_indptr, indices)
+    if new_indptr[-1] < np.iinfo(np.int32).max:
+        return pa.ListArray.from_arrays(new_indptr, new_indices)
+    else:
+        return pa.LargeListArray.from_arrays(new_indptr, new_indices)

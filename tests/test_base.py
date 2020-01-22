@@ -172,6 +172,13 @@ def test_take_list_arrays():
     list_array = pa.ListArray.from_arrays(indptr, indices)
     large_list_array = pa.LargeListArray.from_arrays(indptr, indices)
 
+    test_with_null = fr.FletcherArray(pa.array([[1, 2], [None, 3], [4, 5]]))
+
+    assert np.all(
+        pa.array(test_with_null.take([1, 2, 1])).to_pylist()
+        == [[None, 3], [4, 5], [None, 3]]
+    )
+
     test = fr.FletcherArray(pa.chunked_array([list_array, list_array])).take([0, 5, 1])
     test_large = fr.FletcherArray(
         pa.chunked_array([large_list_array, large_list_array])
