@@ -8,7 +8,7 @@ with open("README.md") as f:
     long_description = f.read()
 
 setup(
-    name="fletcher",
+    name="tinyclues_fletcher",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
     description="Pandas ExtensionDType/Array backed by Apache Arrow",

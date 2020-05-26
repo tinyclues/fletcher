@@ -1,0 +1,28 @@
+{% set data = load_setup_py_data() %}
+
+package:
+  name: tinyclues_fletcher
+  version: {{ data.get('version') }}
+
+source:
+  path: ..
+
+build:
+  number: 0
+  script: python -m pip install --no-deps --ignore-installed .
+  noarch: python
+
+requirements:
+  build:
+    - python {{ python }}
+    - pip
+    - setuptools_scm
+    - six
+
+  run:
+    - python
+    - numba=0.46
+    #numba=0.47 has a bug that will be fixed in the next release, see https://github.com/numba/numba/issues/5056.
+    - pandas>=0.25.3,<1.0
+    - pyarrow>=0.15.1,<0.16
+    - six
