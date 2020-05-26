@@ -21,17 +21,21 @@ conda config --set auto_update_conda false
 conda config --add channels https://repo.continuum.io/pkgs/free
 conda config --add channels conda-forge
 
-conda create -y -q -n fletcher python=${PYTHON_VERSION} \
-    pandas pyarrow>=0.15.1 pytest pytest-cov \
+conda create -y -q -c conda-forge -n fletcher \
+    python=${PYTHON_VERSION} \
+    numba=0.46 \
+    "pandas>=0.25.3,<1.0" \
+    "pyarrow>=0.15.1,<0.16" \
+    six \
+    pytest \
+    pytest-cov \
     hypothesis \
     setuptools_scm \
     pip \
-    numba=0.46 \
     codecov \
-    six \
     sphinx \
-    pre_commit \
-    -c conda-forge
+    pre_commit
+
 # numba=0.47 has a bug that will be fixed in the next release, see https://github.com/numba/numba/issues/5056.
 source activate fletcher
 

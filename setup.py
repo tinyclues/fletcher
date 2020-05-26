@@ -8,7 +8,7 @@ with open("README.md") as f:
     long_description = f.read()
 
 setup(
-    name="fletcher",
+    name="tinyclues_fletcher",
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
     description="Pandas ExtensionDType/Array backed by Apache Arrow",
@@ -24,5 +24,10 @@ setup(
         "Programming Language :: Python :: 3.7",
     ],
     packages=find_packages(),
-    install_requires=["pandas>=0.24.0", "pyarrow>=0.15.1", "numba", "six"],
+    install_requires=[
+        "pandas>=0.25.3,<1.0",
+        "pyarrow>=0.15.1,<0.16",
+        "numba==0.46",
+        "six",
+    ],
 )

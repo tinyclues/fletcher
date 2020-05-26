@@ -43,6 +43,19 @@ jobs:
           path: test-reports
       - store_artifacts:
           path: test-reports
+  wheel_build_deploy:
+    docker:
+      - image: circleci/python:3.6
+    steps:
+      - checkout
+      - run:
+          name: Run project package
+          command: python setup.py bdist_wheel
+      - run:
+          name: Upload wheel package
+          command: |
+            pip install twine
+            twine upload dist/*
 
 workflows:
   build:
@@ -58,3 +71,8 @@ workflows:
             - python-36
             - python-37
             - build_package
+      - wheel_build_deploy:
+          context: artifactory
+          requires:
+            - python-36
+            - python-37
