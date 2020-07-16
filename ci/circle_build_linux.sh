@@ -23,9 +23,9 @@ conda config --add channels conda-forge
 
 conda create -y -q -c conda-forge -n fletcher \
     python=${PYTHON_VERSION} \
-    numba=0.46 \
+    "numba>0.49" \
     "pandas>=0.25.3,<1.0" \
-    "pyarrow>=0.15.1,<0.16" \
+    "pyarrow>=0.17.1" \
     six \
     pytest \
     pytest-cov \
@@ -36,7 +36,6 @@ conda create -y -q -c conda-forge -n fletcher \
     sphinx \
     pre_commit
 
-# numba=0.47 has a bug that will be fixed in the next release, see https://github.com/numba/numba/issues/5056.
 source activate fletcher
 
 if [ "${PYTHON_VERSION}" = "3.7" ]; then

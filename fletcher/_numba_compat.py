@@ -10,13 +10,15 @@ import numpy as np
 import pyarrow as pa
 import six
 
-_string_buffer_types = np.uint8, np.uint32, np.uint8
+from ._algorithms import _extract_isnull_bitmap
 
 
 def buffers_as_arrays(sa):
-    return tuple(
-        np.asarray(b).view(t) if b is not None else None
-        for b, t in zip(sa.buffers(), _string_buffer_types)
+    buffers = sa.buffers()
+    return (
+        _extract_isnull_bitmap(sa, 0, len(sa)),
+        np.asarray(buffers[1]).view(np.uint32),
+        np.asarray(buffers[2]).view(np.uint8),
     )
 
 
@@ -28,7 +30,7 @@ def buffers_as_arrays(sa):
         ("offset", numba.int64),
     ]
 )
-class NumbaStringArray(object):
+class NumbaStringArray:
     """Wrapper around arrow's StringArray for use in numba functions.
 
     Usage::
@@ -116,7 +118,7 @@ NumbaStringArray.make = types.MethodType(_make, NumbaStringArray)  # type: ignor
 @numba.jitclass(
     [("start", numba.uint32), ("end", numba.uint32), ("data", numba.uint8[:])]
 )
-class NumbaString(object):
+class NumbaString:
     def __init__(self, data, start=0, end=None):
         if end is None:
             end = data.shape[0]
@@ -157,7 +159,7 @@ NumbaString.make = types.MethodType(_make_string, NumbaString)  # type: ignore
         ("byte_capacity", numba.uint32),
     ]
 )
-class NumbaStringArrayBuilder(object):
+class NumbaStringArrayBuilder:
     def __init__(self, string_capacity, byte_capacity):
         self.missing = np.ones(_missing_capactiy(string_capacity), np.uint8)
         self.offsets = np.zeros(string_capacity + 1, np.uint32)

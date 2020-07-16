@@ -74,7 +74,7 @@ test_types = [
         ["B", "B", None, None, "A", "A", "B", "C"],
         ["B", "C", "A"],
         ["B", None, "A"],
-        lambda: choices(list(string.ascii_letters), k=10),
+        lambda: choices(list(string.ascii_letters), k=10),  # type: ignore
     ),
     FletcherTestType(
         pa.bool_(),

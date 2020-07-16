@@ -8,7 +8,7 @@ import pyarrow as pa
 import pytest
 
 # fmt: off
-from fletcher._algorithms import isnull, str_concat, str_length
+from fletcher._algorithms import isnull, str_length
 from fletcher._numba_compat import NumbaStringArray, NumbaStringArrayBuilder, buffers_as_arrays
 
 # fmt:on
@@ -79,18 +79,6 @@ def test_str_length(array, expected, offset):
     )
 
 
-def test_str_concat():
-    a1 = pa.array(["f", "ba", "baz"])
-    a2 = pa.array(["oo", "r", ""])
-
-    actual = str_concat(NumbaStringArray.make(a1), NumbaStringArray.make(a2))
-    expected = NumbaStringArray.make(["foo", "bar", "baz"])
-
-    np.testing.assert_array_equal(actual.missing, expected.missing)
-    np.testing.assert_array_equal(actual.offsets, expected.offsets)
-    np.testing.assert_array_equal(actual.data, expected.data)
-
-
 def test_decode_example():
     strings = ["foo", "bar", "baz"]
     expected = strings[1].encode("utf32")
@@ -131,6 +119,5 @@ def test_string_builder_simple(data):
     expected = pa.array(data, pa.string())
     missing, offsets, data = buffers_as_arrays(expected)
 
-    np.testing.assert_array_equal(builder.missing, missing)
     np.testing.assert_array_equal(builder.offsets, offsets)
     np.testing.assert_array_equal(builder.data, data)

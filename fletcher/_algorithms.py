@@ -2,15 +2,53 @@
 
 from __future__ import absolute_import, division, print_function
 
+from typing import Optional
+
 import numba
 import numpy as np
 import pyarrow as pa
 from numba import njit, prange
 
-from ._numba_compat import NumbaStringArray
-
 FASTMATH = True
 PARALLEL = True
+
+
+def _extract_data_buffer_as_np_array(array: pa.Array) -> np.ndarray:
+    """Extract the data buffer of a numeric-typed pyarrow.Array as an np.ndarray."""
+    dtype = array.type.to_pandas_dtype()
+    start = array.offset
+    end = array.offset + len(array)
+    if pa.types.is_boolean(array.type):
+        return np.unpackbits(
+            _buffer_to_view(array.buffers()[1]).view(np.uint8), bitorder="little"
+        )[start:end].astype(bool)
+    else:
+        return _buffer_to_view(array.buffers()[1]).view(dtype)[start:end]
+
+
+EMPTY_BUFFER_VIEW = np.array([], dtype=np.uint8)
+
+
+def _buffer_to_view(buf: Optional[pa.Buffer]) -> np.ndarray:
+    """Extract the pyarrow.Buffer as np.ndarray[np.uint8]."""
+    if buf is None:
+        return EMPTY_BUFFER_VIEW
+    else:
+        return np.asanyarray(buf).view(np.uint8)
+
+
+def _extract_isnull_bitmap(arr: pa.Array, offset: int, length: int):
+    """
+    Extract isnull bitmap with offset and padding.
+
+    Ensures that even when pyarrow does return an empty bitmap that a filled
+    one will be returned.
+    """
+    buf = _buffer_to_view(arr.buffers()[0])
+    if len(buf) > 0:
+        return buf[offset : offset + length]
+    else:
+        return np.full(length, fill_value=255, dtype=np.uint8)
 
 
 @numba.jit(nogil=True, nopython=True)
@@ -130,36 +168,6 @@ def str_length(sa):
         result[i] = sa.length(i)
 
     return result
-
-
-@numba.jit(nogil=True, nopython=True)
-def str_concat(sa1, sa2):
-    # TODO: check overflow of size
-    assert sa1.size == sa2.size
-
-    result_missing = sa1.missing | sa2.missing
-    result_offsets = np.zeros(sa1.size + 1, np.uint32)
-    result_data = np.zeros(sa1.byte_size + sa2.byte_size, np.uint8)
-
-    offset = 0
-    for i in range(sa1.size):
-        if sa1.isnull(i) or sa2.isnull(i):
-            result_offsets[i + 1] = offset
-            continue
-
-        for j in range(sa1.byte_length(i)):
-            result_data[offset] = sa1.get_byte(i, j)
-            offset += 1
-
-        for j in range(sa2.byte_length(i)):
-            result_data[offset] = sa2.get_byte(i, j)
-            offset += 1
-
-        result_offsets[i + 1] = offset
-
-    result_data = result_data[:offset]
-
-    return NumbaStringArray(result_missing, result_offsets, result_data, 0)
 
 
 @numba.njit(locals={"valid": numba.bool_, "value": numba.bool_})
@@ -393,3 +401,83 @@ def take_indices_on_pyarrow_list(array, indices):
         return pa.ListArray.from_arrays(new_indptr, new_indices)
     else:
         return pa.LargeListArray.from_arrays(new_indptr, new_indices)
+
+
+@numba.jit(nogil=True, nopython=True)
+def _merge_non_aligned_bitmaps(
+    valid_a: np.ndarray,
+    inner_offset_a: int,
+    valid_b: np.ndarray,
+    inner_offset_b: int,
+    length: int,
+    result: np.ndarray,
+) -> None:
+    for i in range(length):
+        a_pos = inner_offset_a + i
+        byte_offset_a = a_pos // 8
+        bit_offset_a = a_pos % 8
+        mask_a = np.uint8(1 << bit_offset_a)
+        value_a = valid_a[byte_offset_a] & mask_a
+
+        b_pos = inner_offset_b + i
+        byte_offset_b = b_pos // 8
+        bit_offset_b = b_pos % 8
+        mask_b = np.uint8(1 << bit_offset_b)
+        value_b = valid_b[byte_offset_b] & mask_b
+
+        byte_offset_result = i // 8
+        bit_offset_result = i % 8
+        mask_result = np.uint8(1 << bit_offset_result)
+
+        current = result[byte_offset_result]
+        if (
+            value_a and value_b
+        ):  # must be logical, not bit-wise as different bits may be flagged
+            result[byte_offset_result] = current | mask_result
+        else:
+            result[byte_offset_result] = current & ~mask_result
+
+
+def _merge_valid_bitmaps(a: pa.Array, b: pa.Array) -> np.ndarray:
+    """Merge two valid masks of pyarrow.Array instances.
+
+    This method already assumes that both arrays are of the same length.
+    This property is not checked again.
+    """
+    length = len(a) // 8
+    if len(a) % 8 != 0:
+        length += 1
+
+    offset_a = a.offset // 8
+    if a.offset % 8 != 0:
+        pad_a = 1
+    else:
+        pad_a = 0
+    valid_a = _extract_isnull_bitmap(a, offset_a, length + pad_a)
+
+    offset_b = b.offset // 8
+    if b.offset % 8 != 0:
+        pad_b = 1
+    else:
+        pad_b = 0
+    valid_b = _extract_isnull_bitmap(b, offset_b, length + pad_b)
+
+    if a.offset % 8 == 0 and b.offset % 8 == 0:
+        result = valid_a & valid_b
+
+        # Mark trailing bits with 0
+        if len(a) % 8 != 0:
+            result[-1] = result[-1] & (2 ** (len(a) % 8) - 1)
+        return result
+    else:
+        # Allocate result
+        result = np.zeros(length, dtype=np.uint8)
+
+        inner_offset_a = a.offset % 8
+        inner_offset_b = b.offset % 8
+        # TODO: We can optimite this when inner_offset_a == inner_offset_b
+        _merge_non_aligned_bitmaps(
+            valid_a, inner_offset_a, valid_b, inner_offset_b, len(a), result
+        )
+
+        return result

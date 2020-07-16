@@ -163,6 +163,11 @@ class FletcherDtype(ExtensionDtype):
         ...         raise TypeError("Cannot construct a '{}' from "
         ...                         "'{}'".format(cls, string))
         """
+        if not isinstance(string, str):
+            raise TypeError(
+                "'construct_from_string' expects a string, got <class 'int'>"
+            )
+
         # Remove fletcher specific naming from the arrow type string.
         if string.startswith("fletcher["):
             string = string[9:-1]
@@ -384,7 +389,7 @@ class FletcherArray(ExtensionArray):
         elif name == "all" and self.dtype._is_boolean:
             return all_op(self.data, skipna=skipna)
         elif name == "sum":
-            return sum(ch.sum().as_py() for ch in self.data.chunks)
+            return np.sum(ch.sum().as_py() or 0 for ch in self.data.chunks)
         elif name == "mean":
             return self._reduce("sum") / (len(self) - self.data.null_count)
         elif name in ["max", "min"] and self.dtype._is_numeric:
