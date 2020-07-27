@@ -25,7 +25,7 @@ conda create -y -q -c conda-forge -n fletcher \
     python=${PYTHON_VERSION} \
     "numba>0.49" \
     "pandas~=1.0.0" \
-    "pyarrow>=0.17.1" \
+    "pyarrow==0.17.1" \
     six \
     pytest \
     pytest-cov \
