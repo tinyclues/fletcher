@@ -5,6 +5,7 @@ import sys
 from collections import namedtuple
 from distutils.version import LooseVersion
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pytest
@@ -39,6 +40,8 @@ if LooseVersion(pd.__version__) >= "0.25.0":
         as_series,  # noqa: F401
     )
 
+PANDAS_GE_1_1_0 = LooseVersion(pd.__version__) >= "1.1.0"
+
 FletcherTestType = namedtuple(
     "FletcherTestType",
     [
@@ -61,6 +64,9 @@ else:
         return [choice(seq) for i in range(k)]
 
 
+xfail_list_setitem_not_implemented = pytest.mark.xfail_by_type_filter(
+    [pa.types.is_list], "__setitem__ is not implemented for lists"
+)
 fail_on_missing_dtype_in_from_sequence = pytest.mark.xfail(
     LooseVersion(pa.__version__) >= "0.10.1dev0",
     reason="Default return type of pa.array([datetime.date]) changed, Pandas tests don't pass the dtype to from_sequence",
@@ -437,7 +443,115 @@ class TestBaseReshapingTests(BaseReshapingTests):
 
 
 class TestBaseSetitemTests(BaseSetitemTests):
-    pass
+    @xfail_list_setitem_not_implemented
+    def test_setitem_scalar_series(self, data, box_in_series):
+        BaseSetitemTests.test_setitem_scalar_series(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_sequence(self, data, box_in_series):
+        BaseSetitemTests.test_setitem_sequence(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_empty_indxer(self, data, box_in_series):
+        BaseSetitemTests.test_setitem_empty_indxer(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_sequence_broadcasts(self, data, box_in_series):
+        BaseSetitemTests.test_setitem_sequence_broadcasts(self, data, box_in_series)
+
+    @pytest.mark.parametrize("setter", ["loc", "iloc"])
+    @xfail_list_setitem_not_implemented
+    def test_setitem_scalar(self, data, setter):
+        BaseSetitemTests.test_setitem_scalar(self, data, setter)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_loc_scalar_mixed(self, data):
+        BaseSetitemTests.test_setitem_loc_scalar_mixed(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_loc_scalar_single(self, data):
+        BaseSetitemTests.test_setitem_loc_scalar_single(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_loc_scalar_multiple_homogoneous(self, data):
+        BaseSetitemTests.test_setitem_loc_scalar_multiple_homogoneous(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_iloc_scalar_mixed(self, data):
+        BaseSetitemTests.test_setitem_iloc_scalar_mixed(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_iloc_scalar_single(self, data):
+        BaseSetitemTests.test_setitem_iloc_scalar_single(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_iloc_scalar_multiple_homogoneous(self, data):
+        BaseSetitemTests.test_setitem_iloc_scalar_multiple_homogoneous(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_nullable_mask(self, data):
+        if not PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_nullable_mask(self, data)
+
+    @pytest.mark.parametrize("as_callable", [True, False])
+    @pytest.mark.parametrize("setter", ["loc", None])
+    @xfail_list_setitem_not_implemented
+    def test_setitem_mask_aligned(self, data, as_callable, setter):
+        BaseSetitemTests.test_setitem_mask_aligned(self, data, as_callable, setter)
+
+    @pytest.mark.parametrize("setter", ["loc", None])
+    @xfail_list_setitem_not_implemented
+    def test_setitem_mask_broadcast(self, data, setter):
+        BaseSetitemTests.test_setitem_mask_broadcast(self, data, setter)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_slice(self, data, box_in_series):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_slice(self, data, box_in_series)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_loc_iloc_slice(self, data):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_loc_iloc_slice(self, data)
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_slice_array(self, data):
+        BaseSetitemTests.test_setitem_slice_array(self, data)
+
+    @xfail_list_setitem_not_implemented
+    @pytest.mark.parametrize(
+        "mask",
+        [
+            np.array([True, True, True, False, False]),
+            pd.array([True, True, True, False, False], dtype="boolean"),
+            pd.array([True, True, True, pd.NA, pd.NA], dtype="boolean"),
+        ],
+        ids=["numpy-array", "boolean-array", "boolean-array-na"],
+    )
+    def test_setitem_mask(self, data, mask, box_in_series):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_mask(self, data, mask, box_in_series)
+
+    @pytest.mark.xfail(reason="Views don't update their parent #96")
+    def test_setitem_preserves_views(self, data):
+        pass
+
+    @xfail_list_setitem_not_implemented
+    def test_setitem_mask_boolean_array_with_na(self, data, box_in_series):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_mask_boolean_array_with_na(
+                self, data, box_in_series
+            )
+
+    @pytest.mark.parametrize(
+        "idx",
+        [[0, 1, 2], pd.array([0, 1, 2], dtype="Int64"), np.array([0, 1, 2])],
+        ids=["list", "integer-array", "numpy-array"],
+    )
+    @pytest.mark.xfail(reason="https://github.com/xhochy/fletcher/issues/110")
+    def test_setitem_integer_array(self, data, idx, box_in_series):
+        if PANDAS_GE_1_1_0:
+            BaseSetitemTests.test_setitem_integer_array(self, data, idx, box_in_series)
 
 
 class TestBaseParsingTests(BaseParsingTests):

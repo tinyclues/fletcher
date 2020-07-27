@@ -9,7 +9,7 @@ export PYTHON_VERSION=$1
 export USE_DEV_WHEELS=$2
 export CONDA_PKGS_DIRS=$HOME/.conda_packages
 export MINICONDA=$HOME/miniconda
-export MINICONDA_URL="https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+export MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
 export PATH="$MINICONDA/bin:$PATH"
 
 wget --no-verbose -O miniconda.sh $MINICONDA_URL
@@ -24,7 +24,7 @@ conda config --add channels conda-forge
 conda create -y -q -c conda-forge -n fletcher \
     python=${PYTHON_VERSION} \
     "numba>0.49" \
-    "pandas>=0.25.3,<1.0" \
+    "pandas~=1.0.0" \
     "pyarrow>=0.17.1" \
     six \
     pytest \

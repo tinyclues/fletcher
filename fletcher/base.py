@@ -4,6 +4,7 @@ from __future__ import absolute_import, division, print_function
 
 import datetime
 from collections import OrderedDict
+from distutils.version import LooseVersion
 from typing import Any, Optional, Sequence, Tuple, Union
 
 import numpy as np
@@ -27,6 +28,10 @@ from ._algorithms import (
 )
 
 # fmt:on
+
+PANDAS_GE_0_26_0 = LooseVersion(pd.__version__) >= "0.26.0"
+if PANDAS_GE_0_26_0:
+    from pandas.core.indexers import check_array_indexer
 
 _python_type_map = {
     pa.null().id: six.text_type,
@@ -122,6 +127,8 @@ class FletcherDtype(ExtensionDtype):
         """
         if pa.types.is_date(self.arrow_dtype):
             return "O"
+        elif self.is_list:
+            return "O"
         else:
             return np.dtype(self.arrow_dtype.to_pandas_dtype()).kind
 
@@ -179,7 +186,8 @@ class FletcherDtype(ExtensionDtype):
             type_for_alias = pa.type_for_alias(string)
         except (ValueError, KeyError):
             # pandas API expects a TypeError
-            raise TypeError(string)
+            msg = f"Cannot construct a '{cls.__name__}' from '{string}'"
+            raise TypeError(msg)
 
         return cls(type_for_alias)
 
@@ -313,11 +321,46 @@ class FletcherArray(ExtensionArray):
         so we raise the error here.
 
         """
+        if not self.dtype._is_numeric:
+            if isinstance(other, FletcherArray):
+                other = other.data.to_pandas()
+            return type(self)(self.data.to_pandas() == other)
+
         array_self = np.asarray(self)
         array_other = np.asarray(other)
         if array_other.size != 1 and array_other.size != array_self.size:
             raise ValueError("Lengths must match to compare")
         return array_self == array_other
+
+    def __ne__(self, other):
+        """
+        Check equality between a FletcherArray and an array-like object or a scalar.
+
+        Parameters
+        ----------
+        self: fr.FletcherArray
+        other: array-like object or scalar
+
+        Returns
+        -------
+        boolean
+
+        Notes
+        -----
+        numpy doesn't raise an error when given two arrays of mismatching lengths,
+        so we raise the error here.
+
+        """
+        if not self.dtype._is_numeric:
+            if isinstance(other, FletcherArray):
+                other = other.data.to_pandas()
+            return type(self)(self.data.to_pandas() != other)
+
+        array_self = np.asarray(self)
+        array_other = np.asarray(other)
+        if array_other.size != 1 and array_other.size != array_self.size:
+            raise ValueError("Lengths must match to compare")
+        return array_self != array_other
 
     @classmethod
     def _concat_same_type(cls, to_concat):
@@ -419,6 +462,9 @@ class FletcherArray(ExtensionArray):
         -------
         None
         """
+        if PANDAS_GE_0_26_0:
+            key = check_array_indexer(self, key)
+
         # Convert all possible input key types to an array of integers
         if is_bool_dtype(key):
             key = np.argwhere(key).flatten()
@@ -501,6 +547,9 @@ class FletcherArray(ExtensionArray):
         For a boolean mask, return an instance of ``FletcherArray``, filtered
         to the values where ``item`` is True.
         """
+        if PANDAS_GE_0_26_0:
+            item = check_array_indexer(self, item)
+
         if is_integer(item):
             return self.data[item].as_py()
         if (
