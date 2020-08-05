@@ -436,3 +436,15 @@ def test_is_list(test_list):
         arr = fr.FletcherArray(test_list[e])
         assert arr_list.dtype.is_list
         assert not arr.dtype.is_list
+
+
+def test_access_element_with_np_integers():
+    inputs = fr.FletcherArray([1, 2, 5, 7])
+    head = inputs[np.int64(0)]
+    second = inputs[np.int32(1)]
+    third = inputs[np.int16(2)]
+    last = inputs[np.int8(3)]
+    assert head == 1
+    assert second == 2
+    assert third == 5
+    assert last == 7

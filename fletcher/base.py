@@ -551,7 +551,7 @@ class FletcherArray(ExtensionArray):
             item = check_array_indexer(self, item)
 
         if is_integer(item):
-            return self.data[item].as_py()
+            return self.data[int(item)].as_py()
         if (
             not isinstance(item, slice)
             and len(item) > 0
