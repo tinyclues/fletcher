@@ -33,7 +33,8 @@ conda create -y -q -c conda-forge -n fletcher \
     pip \
     codecov \
     sphinx \
-    pre_commit
+    pre_commit \
+    dask
 
 source activate fletcher
 
