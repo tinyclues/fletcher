@@ -34,7 +34,8 @@ conda create -y -q -c conda-forge -n fletcher \
     codecov \
     sphinx \
     pre_commit \
-    dask
+    dask \
+    numpydoc
 
 source activate fletcher
 
