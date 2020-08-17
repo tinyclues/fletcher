@@ -35,7 +35,10 @@ conda create -y -q -c conda-forge -n fletcher \
     sphinx \
     pre_commit \
     dask \
-    numpydoc
+    numpydoc \
+    sphinx \
+    sphinx_rtd_theme \
+    sphinxcontrib-apidoc
 
 source activate fletcher
 
