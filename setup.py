@@ -1,6 +1,7 @@
 from os import path
 
 from setuptools import find_packages, setup
+from version import VERSION
 
 here = path.abspath(path.dirname(__file__))
 
@@ -9,6 +10,7 @@ with open("README.md") as f:
 
 setup(
     name="tinyclues_fletcher",
+    version=VERSION,
     use_scm_version=True,
     setup_requires=["setuptools_scm"],
     description="Pandas ExtensionDType/Array backed by Apache Arrow",
